@@ -81,6 +81,11 @@ func TestStatusEqual(t *testing.T) {
 	if base.equal(down) || !down.equal(Status{Name: "gw", Err: errors.New("down")}) {
 		t.Error("errors compared wrongly")
 	}
+	fwdErr := same
+	fwdErr.ForwardErr = errors.New("openshell CLI not found")
+	if base.equal(fwdErr) {
+		t.Error("forward error not seen")
+	}
 }
 
 func TestReason(t *testing.T) {
@@ -167,6 +172,9 @@ func TestLive(t *testing.T) {
 	}
 	if s.Name != "shellight-test" || s.Info.Version == "" || len(s.Info.Drivers) == 0 {
 		t.Errorf("status = %+v", s)
+	}
+	if s.ForwardErr != nil {
+		t.Error(s.ForwardErr)
 	}
 	t.Logf("%+v", s)
 }

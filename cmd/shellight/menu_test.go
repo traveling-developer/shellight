@@ -96,6 +96,44 @@ func TestAddStatusError(t *testing.T) {
 	}
 }
 
+func TestAddStatusForwards(t *testing.T) {
+	s := gateway.Status{Name: "gw", Info: gateway.Info{
+		Version: "0.1.7",
+		Drivers: []string{"podman"},
+		Sandboxes: []gateway.Sandbox{{
+			Name: "web", Workspace: "default", Phase: "Ready", PolicyVersion: 1,
+			Created: time.Date(2026, 11, 8, 16, 20, 0, 0, time.Local),
+			Forwards: []gateway.Forward{
+				{Bind: "127.0.0.1", Port: 8080},
+				{Bind: "::1", Port: 9000},
+			},
+		}},
+	}, ForwardErr: errors.New("openshell forward list: exit status 1")}
+	m := application.NewMenu()
+	addStatus(m, s)
+	want := []string{"Gateway: gw · 0.1.7 · podman", "-", "Sandboxes", "web — Ready",
+		"Port forwards: unavailable"}
+	if got := labels(m); !reflect.DeepEqual(got, want) {
+		t.Errorf("menu = %q, want %q", got, want)
+	}
+	sub := m.FindByLabel("web — Ready").GetSubmenu()
+	want = []string{"Workspace: default", "Created: 2026-11-08 16:20", "Policy: v1", "-",
+		"Port forwards", "127.0.0.1:8080", "[::1]:9000"}
+	if got := labels(sub); !reflect.DeepEqual(got, want) {
+		t.Errorf("submenu = %q, want %q", got, want)
+	}
+}
+
+func TestBrowseHost(t *testing.T) {
+	for bind, want := range map[string]string{
+		"127.0.0.1": "127.0.0.1", "::1": "::1", "0.0.0.0": "localhost", "::": "localhost",
+	} {
+		if got := browseHost(bind); got != want {
+			t.Errorf("browseHost(%q) = %q, want %q", bind, got, want)
+		}
+	}
+}
+
 func TestWrap(t *testing.T) {
 	got := wrap("aaa bbb  ccc dddddddddd e", 7)
 	want := []string{"aaa bbb", "ccc", "dddddddddd", "e"}

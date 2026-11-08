@@ -1,5 +1,5 @@
 // Package gateway polls the active gateway of the openshell CLI through
-// NVIDIA's OpenShell Go SDK.
+// NVIDIA's OpenShell Go SDK, and the CLI's port forwards through the CLI.
 package gateway
 
 import (
@@ -27,6 +27,9 @@ type Status struct {
 	Endpoint string // as in the CLI config, e.g. https://127.0.0.1:17690
 	Info     Info
 	Err      error // reading the config, connecting or fetching failed
+	// ForwardErr is set if listing the port forwards failed; the gateway
+	// status is still valid then.
+	ForwardErr error
 }
 
 // Info is what shellight shows about the gateway.
@@ -44,6 +47,7 @@ type Sandbox struct {
 	Reason        string // why the sandbox is in phase Error, else empty
 	Created       time.Time
 	PolicyVersion uint32
+	Forwards      []Forward // running ones, sorted by port
 }
 
 // Poll fetches from the active gateway of the openshell CLI every 5 s, or
@@ -72,7 +76,8 @@ func Poll(ctx context.Context, update func(Status)) {
 // equal reports whether s and o would show the same.
 func (s Status) equal(o Status) bool {
 	return s.Name == o.Name && s.Endpoint == o.Endpoint &&
-		errText(s.Err) == errText(o.Err) && reflect.DeepEqual(s.Info, o.Info)
+		errText(s.Err) == errText(o.Err) && errText(s.ForwardErr) == errText(o.ForwardErr) &&
+		reflect.DeepEqual(s.Info, o.Info)
 }
 
 func errText(err error) string {
@@ -97,9 +102,23 @@ func poll(ctx context.Context) Status {
 	}
 	defer sdk.Close()
 
-	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	fctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
-	s.Info, s.Err = fetch(ctx, sdk)
+	s.Info, s.Err = fetch(fctx, sdk)
+	if s.Err != nil {
+		return s
+	}
+
+	// Forwards only show under their sandbox, so skip them when the
+	// gateway is unreachable.
+	lctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+	fwds, err := listForwards(lctx)
+	if err != nil {
+		s.ForwardErr = err
+		return s
+	}
+	attachForwards(s.Info.Sandboxes, fwds)
 	return s
 }
 

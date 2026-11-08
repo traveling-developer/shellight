@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -71,7 +74,40 @@ func addStatus(m *application.Menu, s gateway.Status) {
 		if sb.Reason != "" {
 			addLines(sub, sb.Reason)
 		}
+		if len(sb.Forwards) > 0 {
+			sub.AddSeparator()
+			sub.Add("Port forwards").SetEnabled(false)
+			for _, f := range sb.Forwards {
+				addForward(sub, f)
+			}
+		}
 	}
+	// Forwards only show under their sandbox, so this matters only with
+	// sandboxes.
+	if s.ForwardErr != nil {
+		addLines(m.AddSubmenu("Port forwards: unavailable"), s.ForwardErr.Error())
+	}
+}
+
+// addForward adds a port forward as "bind:port", which opens it in the
+// browser.
+func addForward(m *application.Menu, f gateway.Forward) {
+	port := strconv.Itoa(f.Port)
+	url := "http://" + net.JoinHostPort(browseHost(f.Bind), port)
+	m.Add(net.JoinHostPort(f.Bind, port)).OnClick(func(*application.Context) {
+		if err := application.Get().Browser.OpenURL(url); err != nil {
+			log.Printf("open %s: %v", url, err)
+		}
+	})
+}
+
+// browseHost is the host to open a forward bound to bind: a wildcard
+// address is not reachable as such, so use localhost.
+func browseHost(bind string) string {
+	if bind == "0.0.0.0" || bind == "::" {
+		return "localhost"
+	}
+	return bind
 }
 
 // addLines adds text as disabled items, wrapped at word boundaries, so a
