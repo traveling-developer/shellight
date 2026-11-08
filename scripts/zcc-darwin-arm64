@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# C compiler wrapper for cgo: cross compile darwin/arm64 with Zig and the
+# macOS SDK. Same approach as zcc-darwin-arm64 in Wails' Dockerfile.cross
+# (v3.0.0), plus an explicit minimum macOS version (see docs/spikes/S1.md).
+#
+# Env:
+#   MACOS_SDK_PATH     SDK root (default /opt/macos-sdk)
+#   MACOS_MIN_VERSION  minimum macOS version (default 27.0)
+set -euo pipefail
+
+sdk="${MACOS_SDK_PATH:-/opt/macos-sdk}"
+min="${MACOS_MIN_VERSION:-27.0}"
+
+# Drop the target and version flags cgo or Go pass in; ours win.
+args=()
+skip_next=0
+for a in "$@"; do
+  if (( skip_next )); then skip_next=0; continue; fi
+  case "$a" in
+    -target) skip_next=1 ;;
+    -target=*|--target=*|-mmacosx-version-min=*|-mmacos-version-min=*) ;;
+    *) args+=("$a") ;;
+  esac
+done
+
+# Go probes the compiler with `-### -x c -c -`. clang only prints commands for
+# -###, but zig 0.14.0 also writes an empty `-.o` into the working directory
+# (even with -o /dev/null). Run such probes in a throwaway directory.
+for a in "${args[@]}"; do
+  if [[ "$a" == "-###" ]]; then
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    cd "$tmp"
+    break
+  fi
+done
+
+zig cc -fno-sanitize=all -target "aarch64-macos.${min}" \
+  -isysroot "$sdk" \
+  -I"$sdk/usr/include" \
+  -L"$sdk/usr/lib" \
+  -F"$sdk/System/Library/Frameworks" \
+  -w "${args[@]}"

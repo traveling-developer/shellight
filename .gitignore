@@ -2,7 +2,10 @@ tmp_old/
 .DS_Store
 
 # Build output
-/build/
+/build/bin/
 
 # Local test gateway state and credentials
 /.dev/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
