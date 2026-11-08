@@ -5,7 +5,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/build/bin/shellight.app"
 
-[[ -d "$app" ]] || { echo "$app missing, run: task build:darwin" >&2; exit 1; }
+[[ -d "$app" ]] || { echo "$app missing, run: task app" >&2; exit 1; }
 
 # rcodesign signs ad hoc when no certificate is given.
 rcodesign sign "$app"

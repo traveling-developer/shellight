@@ -6,6 +6,7 @@ ARG NODE_VERSION=24.22.1
 ARG ZIG_VERSION=0.14.0
 ARG RCODESIGN_VERSION=0.29.0
 ARG WAILS_VERSION=v3.0.0
+ARG TASK_VERSION=v3.54.0
 # Local darwin builds only; releases are built on a GitHub macOS runner (S7)
 ARG MACOS_SDK_URL=https://github.com/joseluisq/macosx-sdks/releases/download/14.5/MacOSX14.5.sdk.tar.xz
 ARG MACOS_SDK_SHA256=6e146275d19f027faa2e8354da5e0267513abf013b8f16ad65a231653a2b1c5d
@@ -83,7 +84,8 @@ ENV HOME=/home/vscode \
 # vscode so the empty volume inherits the ownership on first mount.
 RUN mkdir -p /home/vscode/.local/share/containers
 
-RUN go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+RUN go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION} \
+    && go install github.com/go-task/task/v3/cmd/task@${TASK_VERSION}
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
 WORKDIR /workspaces/shellight

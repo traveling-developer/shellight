@@ -1,0 +1,23 @@
+version: '3'
+
+# shellight tasks. Everything runs inside the devcontainer.
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  app:
+    desc: Cross build and ad hoc sign build/bin/shellight.app (darwin/arm64)
+    cmds:
+      - scripts/build-darwin.sh
+      - scripts/sign-adhoc.sh
+
+  check:
+    desc: go vet and go tests (linux, in the devcontainer)
+    env:
+      # silence deprecation warnings from the Wails GTK cgo code
+      CGO_CFLAGS: '-w'
+    cmds:
+      - go vet ./...
+      - go test ./...
