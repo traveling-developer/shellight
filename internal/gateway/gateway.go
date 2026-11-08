@@ -30,6 +30,9 @@ type Status struct {
 	// ForwardErr is set if listing the port forwards failed; the gateway
 	// status is still valid then.
 	ForwardErr error
+	// DenialErr is set if reading the policy denials failed; the gateway
+	// status is still valid then, but no sandbox has denials.
+	DenialErr error
 }
 
 // Info is what shellight shows about the gateway.
@@ -48,6 +51,7 @@ type Sandbox struct {
 	Created       time.Time
 	PolicyVersion uint32
 	Forwards      []Forward // running ones, sorted by port
+	Denials       []Denial  // pending ones, sorted by ID
 }
 
 // Poll fetches from the active gateway of the openshell CLI every 5 s, or
@@ -77,6 +81,7 @@ func Poll(ctx context.Context, update func(Status)) {
 func (s Status) equal(o Status) bool {
 	return s.Name == o.Name && s.Endpoint == o.Endpoint &&
 		errText(s.Err) == errText(o.Err) && errText(s.ForwardErr) == errText(o.ForwardErr) &&
+		errText(s.DenialErr) == errText(o.DenialErr) &&
 		reflect.DeepEqual(s.Info, o.Info)
 }
 
@@ -109,8 +114,12 @@ func poll(ctx context.Context) Status {
 		return s
 	}
 
-	// Forwards only show under their sandbox, so skip them when the
-	// gateway is unreachable.
+	// Denials and forwards only show under their sandbox, so skip them
+	// when the gateway is unreachable.
+	dctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+	s.DenialErr = attachDenials(dctx, sdk, s.Info.Sandboxes)
+
 	lctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 	fwds, err := listForwards(lctx)

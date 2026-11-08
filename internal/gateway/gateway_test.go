@@ -86,6 +86,11 @@ func TestStatusEqual(t *testing.T) {
 	if base.equal(fwdErr) {
 		t.Error("forward error not seen")
 	}
+	denialErr := same
+	denialErr.DenialErr = errors.New("policy draft of default/a: down")
+	if base.equal(denialErr) {
+		t.Error("denial error not seen")
+	}
 }
 
 func TestReason(t *testing.T) {
@@ -175,6 +180,9 @@ func TestLive(t *testing.T) {
 	}
 	if s.ForwardErr != nil {
 		t.Error(s.ForwardErr)
+	}
+	if s.DenialErr != nil {
+		t.Error(s.DenialErr)
 	}
 	t.Logf("%+v", s)
 }
