@@ -1,0 +1,30 @@
+#!/bin/sh
+# crun wrapper for the nested Podman (S2a, option B). Spike workaround.
+#
+# The devcontainer's seccomp profile only allows sethostname with
+# CAP_SYS_ADMIN, which the devcontainer lacks. crun calls sethostname whenever
+# the OCI config sets a hostname, so every inner container fails with
+# "sethostname: Operation not permitted". `utsns = "host"` avoids that but the
+# OpenShell Podman driver sets a hostname, which Podman rejects in the host UTS
+# namespace. This wrapper drops hostname/domainname from config.json before
+# create/run; the container keeps its private UTS namespace.
+set -eu
+bundle=""
+cmd=""
+prev=""
+for a in "$@"; do
+  case "$prev" in --bundle|-b) bundle="$a" ;; esac
+  case "$a" in
+    --bundle=*) bundle="${a#--bundle=}" ;;
+    create|run) [ -z "$cmd" ] && cmd="$a" ;;
+  esac
+  prev="$a"
+done
+if [ -n "$cmd" ]; then
+  cfg="${bundle:-.}/config.json"
+  if [ -f "$cfg" ] && jq -e 'has("hostname") or has("domainname")' "$cfg" >/dev/null; then
+    tmp="$cfg.nohostname.$$"
+    jq 'del(.hostname, .domainname)' "$cfg" >"$tmp" && mv "$tmp" "$cfg"
+  fi
+fi
+exec /usr/bin/crun "$@"

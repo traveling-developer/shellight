@@ -2,7 +2,24 @@
   "name": "shellight",
   "build": { "dockerfile": "Dockerfile" },
   "remoteUser": "vscode",
+  // Keep vscode at uid 1000. Otherwise the devcontainer tool may switch it to
+  // the host UID (501 on the Mac), and the shellight-containers volume ends
+  // up owned by a different uid than on the previous build.
+  "updateRemoteUserUID": false,
   // Rootless Podman: map your user to vscode (uid 1000) so files in the
-  // workspace mount keep sane ownership.
-  "runArgs": ["--userns=keep-id:uid=1000,gid=1000"]
+  // workspace mount keep sane ownership. The other entries let the nested
+  // rootless Podman for the test gateway run (see the Dockerfile).
+  // Tradeoff: label=disable turns off SELinux confinement for this container
+  // and unmask=ALL exposes the masked /proc and /sys paths, which the nested
+  // Podman needs to mount proc and sysfs. Both weaken isolation from the
+  // Podman machine VM. The container still runs rootless (no --privileged,
+  // no added capabilities), so this exposes information, not privileges.
+  "runArgs": [
+    "--userns=keep-id:uid=1000,gid=1000",
+    "--security-opt=label=disable",
+    "--security-opt=unmask=ALL",
+    "--device=/dev/net/tun",
+    "--volume=shellight-containers:/home/vscode/.local/share/containers"
+  ],
+  "postCreateCommand": "openshell --version && podman info >/dev/null"
 }
