@@ -1,2 +1,8 @@
 tmp_old/
 .DS_Store
+
+# Build output
+/build/
+
+# Local test gateway state and credentials
+/.dev/
