@@ -1,0 +1,8 @@
+{
+  "name": "shellight",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "vscode",
+  // Rootless Podman: map your user to vscode (uid 1000) so files in the
+  // workspace mount keep sane ownership.
+  "runArgs": ["--userns=keep-id:uid=1000,gid=1000"]
+}
