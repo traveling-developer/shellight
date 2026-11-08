@@ -8,7 +8,7 @@ metadata:
   modified: 2026-11-08T16:51:39.881Z
 ---
 
-Decided by Christoph on 2026-11-08:
+Decided by the user on 2026-11-08:
 
 - **Source:** gRPC through NVIDIA's Go SDK, not the openshell CLI. Exception: port forwards are local CLI state (`openshell forward`), so listing them stays a CLI job.
 - **Gateway:** reachable yes/no, version, compute driver (`GetGatewayInfo`). Auth status was not chosen.
@@ -17,7 +17,7 @@ Decided by Christoph on 2026-11-08:
 - **Polling:** every 5 s, back off to 30 s on errors (confirmed 2026-11-08). No push for the sandbox list or gateway health exists; `WatchSandbox` streams only one named sandbox. Per-sandbox streams come with the denials step, then list polling may drop to 30 s. No menu-will-open hook in Wails on macOS (only a custom OnClick, which loses native menu tracking).
 
 - **Port forwards (decided 2026-11-08, step D):** run `openshell forward list -o json` each poll round (the SDK cannot list CLI forwards; it is local CLI state at `<config>/openshell/forwards/<ws>/<sandbox>-<port>.pid` and has no gateway field). Show bind:port of running forwards only (dead ones hidden, review 2026-11-08) in the submenu of their sandbox; forwards for sandboxes the active gateway does not list are dropped. One action: open http://bind:port in the browser. No stop action. Finder apps have no shell PATH, so the binary is looked up on PATH and then at /opt/homebrew/bin and /usr/local/bin.
-- **Policy denials (decided 2026-11-08, step E):** source is the draft inbox, `Policy().GetDraft` per sandbox each poll round (the SDK's `Sandboxes().Watch` only follows status, and the `DraftPolicyUpdate` push in the proto is not exposed by the SDK, so no per-sandbox streams). Show chunks with status pending only (server-side filter; rejected dropped in review 2026-11-08, "start with pending"); fields: chunk ID, endpoint (host:port) and binary. A failing GetDraft sets `Status.DenialErr` like ForwardErr and does not fail the round. Not wanted: OCSF log lines, hit count, rationale, list in the menu, count in the sandbox line, status dot. Visibility: a macOS notification per new denial; clicking it opens a window that shows the denial. Christoph: "nicht alles auf einmal", so split: E1 read the denials (no UI), E2 notification, E3 window on click. Approve/reject is a later step.
+- **Policy denials (decided 2026-11-08, step E):** source is the draft inbox, `Policy().GetDraft` per sandbox each poll round (the SDK's `Sandboxes().Watch` only follows status, and the `DraftPolicyUpdate` push in the proto is not exposed by the SDK, so no per-sandbox streams). Show chunks with status pending only (server-side filter; rejected dropped in review 2026-11-08, "start with pending"); fields: chunk ID, endpoint (host:port) and binary. A failing GetDraft sets `Status.DenialErr` like ForwardErr and does not fail the round. Not wanted: OCSF log lines, hit count, rationale, list in the menu, count in the sandbox line, status dot. Visibility: a macOS notification per new denial; clicking it opens a window that shows the denial. the user: "nicht alles auf einmal", so split: E1 read the denials (no UI), E2 notification, E3 window on click. Approve/reject is a later step.
 
-**Why:** Christoph picked these from the full list of what the API and CLI offer.
-**How to apply:** Build only these fields; ask before adding others. Related: [[ask-scope-not-tmp-old]], [[current-step]].
+**Why:** The user picked these from the full list of what the API and CLI offer.
+**How to apply:** Build only these fields; ask before adding others. Related: [[current-step]], [[product-vision]].
