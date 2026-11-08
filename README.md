@@ -1,3 +1,3 @@
 # shellight
 
-A sipmle user interface for NVIDIA OpenShell
+A simple user interface for NVIDIA OpenShell
