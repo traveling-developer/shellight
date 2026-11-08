@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eb572603-07cb-46af-ae88-103357b7e230
-  modified: 2026-11-08T17:52:51.041Z
+  modified: 2026-11-08T18:19:20.930Z
 ---
 
 Decided by the user in the grilling session on 2026-11-08:
@@ -36,7 +36,7 @@ Decided by the user in the grilling session on 2026-11-08:
 - **Language:** English only.
 - **Build order (agreed 2026-11-08):** 1 rename Denial → PolicyProposal (while E1 is staged), 2 notification on new proposals, 3 dashboard skeleton + slim menu, 4 notification click opens dashboard, 5 approve/reject, 6 services, 7 stop forward, 8 settings + shell in terminal, 9 gateway restart, 10 notification on sandbox Error/gone, 11 start at login, 12 0.1.0 + Developer ID + notarization + cask. Providers, version check and update hint were added after this list; place them when we get there.
 - **ADRs:** docs/adr/0001 (companion to the CLI), 0002 (proposals by polling the draft inbox).
-- **Terms:** "policy proposal" = pending draft chunk (what the user reacts to); "denial" = the blocked event itself. The code's `gateway.Denial` should be renamed. See GLOSSARY.md.
+- **Terms:** "policy proposal" = pending draft chunk (what the user reacts to); "denial" = the blocked event itself. See GLOSSARY.md.
 
 **Why:** The domain model was unclear before; this is the shared baseline for all later steps.
 **How to apply:** Check new features against "companion, not CLI replacement". Related: [[gateway-data-scope]], [[current-step]].
