@@ -6,6 +6,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"github.com/traveling-developer/shellight/internal/gateway"
 	"github.com/traveling-developer/shellight/internal/trayicon"
 )
 
@@ -17,6 +18,21 @@ var whiteGlyph = trayicon.RGB{R: 0xff, G: 0xff, B: 0xff}
 
 // unknownDot is Apple's system grey: no status known yet.
 var unknownDot = trayicon.RGB{R: 0x8e, G: 0x8e, B: 0x93}
+
+// gatewayLabel names the active gateway of the openshell CLI, or says why it
+// cannot be read. Until the gateway client exists it only shows that
+// shellight finds the CLI config.
+func gatewayLabel() string {
+	dir, err := gateway.Dir()
+	if err != nil {
+		return "Gateway: " + err.Error()
+	}
+	g, err := gateway.Load(dir)
+	if err != nil {
+		return "Gateway: " + err.Error()
+	}
+	return "Gateway: " + g.Name + " (" + g.Endpoint + ")"
+}
 
 func main() {
 	app := application.New(application.Options{
@@ -31,6 +47,7 @@ func main() {
 
 	menu := app.NewMenu()
 	menu.Add("Status: unknown").SetEnabled(false)
+	menu.Add(gatewayLabel()).SetEnabled(false)
 	menu.AddSeparator()
 	menu.Add("Build " + buildID).SetEnabled(false)
 	menu.Add("Quit").OnClick(func(*application.Context) {
