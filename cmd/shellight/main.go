@@ -20,18 +20,15 @@ var whiteGlyph = trayicon.RGB{R: 0xff, G: 0xff, B: 0xff}
 var unknownDot = trayicon.RGB{R: 0x8e, G: 0x8e, B: 0x93}
 
 // gatewayLabel names the active gateway of the openshell CLI, or says why it
-// cannot be read. Until the gateway client exists it only shows that
+// cannot be used. Until the tray polls the gateway it only shows that
 // shellight finds the CLI config.
 func gatewayLabel() string {
-	dir, err := gateway.Dir()
+	c, err := gateway.Dial()
 	if err != nil {
 		return "Gateway: " + err.Error()
 	}
-	g, err := gateway.Load(dir)
-	if err != nil {
-		return "Gateway: " + err.Error()
-	}
-	return "Gateway: " + g.Name + " (" + g.Endpoint + ")"
+	defer c.Close()
+	return "Gateway: " + c.Name + " (" + c.Endpoint + ")"
 }
 
 func main() {
