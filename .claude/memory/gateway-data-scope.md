@@ -11,7 +11,7 @@ Decided by Christoph on 2026-11-08:
 - **Gateway:** reachable yes/no, version, compute driver (`GetGatewayInfo`). Auth status was not chosen.
 - **Sandboxes (all workspaces):** name + phase, failure reason from `conditions`, workspace, created time, policy version.
 - **Later steps (one at a time):** port forwards, policy denials, services, providers. Check how the SDK covers each when its step comes up.
-- **Polling:** every 5 s, back off to 30 s on errors, refresh on menu open if Wails allows.
+- **Polling:** every 5 s, back off to 30 s on errors (confirmed 2026-11-08). No push for the sandbox list or gateway health exists; `WatchSandbox` streams only one named sandbox. Per-sandbox streams come with the denials step, then list polling may drop to 30 s. No menu-will-open hook in Wails on macOS (only a custom OnClick, which loses native menu tracking).
 
 **Why:** Christoph picked these from the full list of what the API and CLI offer.
 **How to apply:** Build only these fields; ask before adding others. Related: [[ask-scope-not-tmp-old]], [[current-step]].

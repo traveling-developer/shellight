@@ -2,8 +2,10 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -33,37 +35,51 @@ func TestFetch(t *testing.T) {
 			CurrentPolicyVersion: 1,
 		},
 	})
-	c := &Client{sdk: f}
-
-	info, err := c.Fetch(context.Background())
+	f.AddSandbox("default", &types.Sandbox{
+		Name: "another", Workspace: "default", CreatedAt: created,
+		Status: types.SandboxStatus{Phase: types.SandboxProvisioning},
+	})
+	info, err := fetch(context.Background(), f)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Version != "0.1.7" || len(info.Drivers) != 1 || info.Drivers[0] != "podman" {
-		t.Errorf("gateway = %q %q", info.Version, info.Drivers)
+	want := Info{
+		Version: "0.1.7",
+		Drivers: []string{"podman"},
+		Sandboxes: []Sandbox{ // sorted by workspace, then name
+			{Name: "another", Workspace: "default", Phase: "Provisioning", Created: created},
+			{Name: "ok", Workspace: "default", Phase: "Ready", Created: created, PolicyVersion: 2},
+			{Name: "broken", Workspace: "team", Phase: "Error", Created: created, PolicyVersion: 1,
+				Reason: "Canonical main process exited with status 3"},
+		},
 	}
-
-	want := map[string]Sandbox{
-		"ok": {Name: "ok", Workspace: "default", Phase: "Ready", Created: created, PolicyVersion: 2},
-		"broken": {Name: "broken", Workspace: "team", Phase: "Error", Created: created, PolicyVersion: 1,
-			Reason: "Canonical main process exited with status 3"},
-	}
-	if len(info.Sandboxes) != len(want) {
-		t.Fatalf("sandboxes = %+v", info.Sandboxes)
-	}
-	for _, s := range info.Sandboxes { // the fake lists in random order
-		if s != want[s.Name] {
-			t.Errorf("sandbox = %+v, want %+v", s, want[s.Name])
-		}
+	if !reflect.DeepEqual(info, want) {
+		t.Errorf("fetch =\n%+v\nwant\n%+v", info, want)
 	}
 }
 
 func TestFetchError(t *testing.T) {
 	f := fake.NewClient()
 	f.Close() // a closed fake fails every call as unavailable
-	c := &Client{sdk: f}
-	if _, err := c.Fetch(context.Background()); err == nil {
-		t.Error("Fetch: no error")
+	if _, err := fetch(context.Background(), f); err == nil {
+		t.Error("fetch: no error")
+	}
+}
+
+func TestStatusEqual(t *testing.T) {
+	base := Status{Name: "gw", Info: Info{Version: "0.1.7", Sandboxes: []Sandbox{{Name: "a", Phase: "Ready"}}}}
+	same := Status{Name: "gw", Info: Info{Version: "0.1.7", Sandboxes: []Sandbox{{Name: "a", Phase: "Ready"}}}}
+	if !base.equal(same) {
+		t.Error("equal statuses differ")
+	}
+	phase := same
+	phase.Info.Sandboxes = []Sandbox{{Name: "a", Phase: "Error"}}
+	if base.equal(phase) {
+		t.Error("phase change not seen")
+	}
+	down := Status{Name: "gw", Err: errors.New("down")}
+	if base.equal(down) || !down.equal(Status{Name: "gw", Err: errors.New("down")}) {
+		t.Error("errors compared wrongly")
 	}
 }
 
@@ -90,36 +106,67 @@ func TestReason(t *testing.T) {
 	}
 }
 
-// TestLive fetches from the test gateway (scripts/test-gateway.sh up):
+// writeConfig writes a CLI config with one active gateway into a temp dir
+// and points XDG_CONFIG_HOME at it.
+func writeConfig(t *testing.T, metadata string) {
+	t.Helper()
+	xdg := t.TempDir()
+	dir := filepath.Join(xdg, "openshell")
+	gw := filepath.Join(dir, "gateways", "gw")
+	if err := os.MkdirAll(gw, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for path, content := range map[string]string{
+		filepath.Join(dir, "active_gateway"): "gw",
+		filepath.Join(gw, "metadata.json"):   metadata,
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+}
+
+func TestPollErrors(t *testing.T) {
+	t.Run("no CLI config", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		if s := poll(context.Background()); s.Err == nil || s.Name != "" {
+			t.Errorf("poll = %+v", s)
+		}
+	})
+	t.Run("auth mode not mtls", func(t *testing.T) {
+		writeConfig(t, `{"gateway_endpoint":"http://127.0.0.1:17690","auth_mode":"plaintext"}`)
+		if s := poll(context.Background()); s.Err == nil {
+			t.Errorf("poll = %+v", s)
+		}
+	})
+	t.Run("mTLS bundle missing", func(t *testing.T) {
+		writeConfig(t, `{"gateway_endpoint":"https://127.0.0.1:17690","auth_mode":"mtls"}`)
+		if s := poll(context.Background()); s.Err == nil || s.Name != "gw" {
+			t.Errorf("poll = %+v", s)
+		}
+	})
+}
+
+// TestLive polls the test gateway (scripts/test-gateway.sh up):
 //
 //	SHELLIGHT_LIVE=1 go test ./internal/gateway -run Live -v
 func TestLive(t *testing.T) {
 	if os.Getenv("SHELLIGHT_LIVE") == "" {
 		t.Skip("set SHELLIGHT_LIVE=1 to run against the test gateway")
 	}
-	cfg, err := filepath.Abs("../../.dev/test-gateway/cli-config")
+	xdg, err := filepath.Abs("../../.dev/test-gateway/cli-config")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", cfg)
+	t.Setenv("XDG_CONFIG_HOME", xdg)
 
-	c, err := Dial()
-	if err != nil {
-		t.Fatal(err)
+	s := poll(context.Background())
+	if s.Err != nil {
+		t.Fatal(s.Err)
 	}
-	defer c.Close()
-	if c.Name != "shellight-test" {
-		t.Errorf("Name = %q", c.Name)
+	if s.Name != "shellight-test" || s.Info.Version == "" || len(s.Info.Drivers) == 0 {
+		t.Errorf("status = %+v", s)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	info, err := c.Fetch(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Version == "" || len(info.Drivers) == 0 {
-		t.Errorf("info = %+v", info)
-	}
-	t.Logf("%+v", info)
+	t.Logf("%+v", s)
 }

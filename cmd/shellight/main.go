@@ -2,9 +2,11 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/traveling-developer/shellight/internal/gateway"
 	"github.com/traveling-developer/shellight/internal/trayicon"
@@ -15,21 +17,6 @@ var buildID = "dev"
 
 // whiteGlyph is the menu bar glyph colour.
 var whiteGlyph = trayicon.RGB{R: 0xff, G: 0xff, B: 0xff}
-
-// unknownDot is Apple's system grey: no status known yet.
-var unknownDot = trayicon.RGB{R: 0x8e, G: 0x8e, B: 0x93}
-
-// gatewayLabel names the active gateway of the openshell CLI, or says why it
-// cannot be used. Until the tray polls the gateway it only shows that
-// shellight finds the CLI config.
-func gatewayLabel() string {
-	c, err := gateway.Dial()
-	if err != nil {
-		return "Gateway: " + err.Error()
-	}
-	defer c.Close()
-	return "Gateway: " + c.Name + " (" + c.Endpoint + ")"
-}
 
 func main() {
 	app := application.New(application.Options{
@@ -43,22 +30,43 @@ func main() {
 	})
 
 	menu := app.NewMenu()
-	menu.Add("Status: unknown").SetEnabled(false)
-	menu.Add(gatewayLabel()).SetEnabled(false)
-	menu.AddSeparator()
-	menu.Add("Build " + buildID).SetEnabled(false)
-	menu.Add("Quit").OnClick(func(*application.Context) {
-		app.Quit()
-	})
-
 	// No window is attached, so a click on the icon opens the menu.
 	tray := app.SystemTray.New()
 	tray.SetTooltip("shellight")
+
+	// render rebuilds the menu and the status dot; s is nil before the first
+	// poll result.
+	render := func(s *gateway.Status) {
+		menu.Clear()
+		dotColour := unknownDot
+		if s == nil {
+			menu.Add("Gateway: connecting…").SetEnabled(false)
+		} else {
+			addStatus(menu, *s)
+			dotColour = dot(*s)
+		}
+		menu.AddSeparator()
+		menu.Add("Build " + buildID).SetEnabled(false)
+		menu.Add("Quit").OnClick(func(*application.Context) {
+			app.Quit()
+		})
+		menu.Update()
+
+		// The icon is not a template image (the dot keeps its colour). The
+		// glyph is always white; a setting to switch it is in docs/backlog.md.
+		tray.SetIcon(trayicon.Badged(whiteGlyph, dotColour))
+	}
+	render(nil)
 	tray.SetMenu(menu)
 
-	// The icon is not a template image (the dot keeps its colour). The glyph
-	// is always white; a setting to switch it is in docs/backlog.md.
-	tray.SetIcon(trayicon.Badged(whiteGlyph, unknownDot))
+	ctx, cancel := context.WithCancel(context.Background())
+	app.OnShutdown(cancel)
+	// Menu updates only take effect once the app runs.
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		go gateway.Poll(ctx, func(s gateway.Status) {
+			application.InvokeSync(func() { render(&s) })
+		})
+	})
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
