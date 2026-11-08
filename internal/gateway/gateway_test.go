@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -86,10 +87,10 @@ func TestStatusEqual(t *testing.T) {
 	if base.equal(fwdErr) {
 		t.Error("forward error not seen")
 	}
-	denialErr := same
-	denialErr.DenialErr = errors.New("policy draft of default/a: down")
-	if base.equal(denialErr) {
-		t.Error("denial error not seen")
+	proposalErr := same
+	proposalErr.ProposalErr = errors.New("policy draft of default/a: down")
+	if base.equal(proposalErr) {
+		t.Error("proposal error not seen")
 	}
 }
 
@@ -181,8 +182,27 @@ func TestLive(t *testing.T) {
 	if s.ForwardErr != nil {
 		t.Error(s.ForwardErr)
 	}
-	if s.DenialErr != nil {
-		t.Error(s.DenialErr)
+	if s.ProposalErr != nil {
+		t.Error(s.ProposalErr)
+	}
+	if !hasProposal(s.Info.Sandboxes, "fwtest", "ports.ubuntu.com:80") {
+		t.Error("sandbox fwtest has no pending policy proposal for ports.ubuntu.com:80")
 	}
 	t.Logf("%+v", s)
+}
+
+// hasProposal reports whether the sandbox named sandbox has a policy
+// proposal for endpoint.
+func hasProposal(sbs []Sandbox, sandbox, endpoint string) bool {
+	for _, sb := range sbs {
+		if sb.Name != sandbox {
+			continue
+		}
+		for _, p := range sb.Proposals {
+			if slices.Contains(p.Endpoints, endpoint) {
+				return true
+			}
+		}
+	}
+	return false
 }

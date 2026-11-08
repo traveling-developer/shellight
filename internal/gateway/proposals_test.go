@@ -60,28 +60,28 @@ func chunk(id, status, host string, port uint32, binary string) v1.PolicyChunk {
 	}
 }
 
-func TestDenials(t *testing.T) {
+func TestProposals(t *testing.T) {
 	multi := chunk("b", "pending", "", 0, "/usr/bin/node")
 	multi.ProposedRule.Endpoints = []v1.PolicyNetworkEndpoint{
 		{Host: "api.example.com", Ports: []uint32{443, 8443}},
 		{Host: "::1", Ports: []uint32{80}},
 	}
-	got := denials([]v1.PolicyChunk{
+	got := proposals([]v1.PolicyChunk{
 		chunk("c", "pending", "ports.ubuntu.com", 80, "/usr/lib/apt/methods/http"),
 		multi,
 		{ID: "a", Status: "pending", Binary: "/bin/true"}, // no proposed rule
 	})
-	want := []Denial{ // sorted by ID
+	want := []PolicyProposal{ // sorted by ID
 		{ID: "a", Binary: "/bin/true"},
 		{ID: "b", Endpoints: []string{"api.example.com:443", "api.example.com:8443", "[::1]:80"}, Binary: "/usr/bin/node"},
 		{ID: "c", Endpoints: []string{"ports.ubuntu.com:80"}, Binary: "/usr/lib/apt/methods/http"},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("denials =\n%+v\nwant\n%+v", got, want)
+		t.Errorf("proposals =\n%+v\nwant\n%+v", got, want)
 	}
 }
 
-func TestAttachDenials(t *testing.T) {
+func TestAttachProposals(t *testing.T) {
 	ctx := context.Background()
 	apt := chunk("c1", "pending", "ports.ubuntu.com", 80, "/usr/lib/apt/methods/http")
 	c := withDrafts{ClientInterface: fake.NewClient(), drafts: map[string][]v1.PolicyChunk{
@@ -90,23 +90,23 @@ func TestAttachDenials(t *testing.T) {
 
 	t.Run("pending only, sandbox gone", func(t *testing.T) {
 		sbs := []Sandbox{{Name: "a", Workspace: "default"}, {Name: "gone", Workspace: "default"}}
-		if err := attachDenials(ctx, c, sbs); err != nil {
+		if err := attachProposals(ctx, c, sbs); err != nil {
 			t.Fatal(err)
 		}
 		want := []Sandbox{
-			{Name: "a", Workspace: "default", Denials: []Denial{{ID: "c1", Endpoints: []string{"ports.ubuntu.com:80"}, Binary: apt.Binary}}},
+			{Name: "a", Workspace: "default", Proposals: []PolicyProposal{{ID: "c1", Endpoints: []string{"ports.ubuntu.com:80"}, Binary: apt.Binary}}},
 			{Name: "gone", Workspace: "default"},
 		}
 		if !reflect.DeepEqual(sbs, want) {
 			t.Errorf("sandboxes =\n%+v\nwant\n%+v", sbs, want)
 		}
 	})
-	t.Run("error leaves all sandboxes without denials", func(t *testing.T) {
+	t.Run("error leaves all sandboxes without proposals", func(t *testing.T) {
 		c := c
 		c.fail = "b"
 		sbs := []Sandbox{{Name: "a", Workspace: "default"}, {Name: "b", Workspace: "default"}}
-		if err := attachDenials(ctx, c, sbs); err == nil || sbs[0].Denials != nil {
-			t.Errorf("attachDenials = %v, sandboxes %+v", err, sbs)
+		if err := attachProposals(ctx, c, sbs); err == nil || sbs[0].Proposals != nil {
+			t.Errorf("attachProposals = %v, sandboxes %+v", err, sbs)
 		}
 	})
 }
