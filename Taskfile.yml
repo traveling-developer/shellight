@@ -9,15 +9,40 @@ tasks:
 
   app:
     desc: Cross build and ad hoc sign build/bin/shellight.app (darwin/arm64)
+    deps: [frontend:build]
     cmds:
       - scripts/build-darwin.sh
       - scripts/sign-adhoc.sh
 
   check:
-    desc: go vet and go tests (linux, in the devcontainer)
+    desc: go vet, go tests and the frontend type check (linux, in the devcontainer)
+    deps: [frontend:deps, frontend:bindings]
     env:
       # silence deprecation warnings from the Wails GTK cgo code
       CGO_CFLAGS: '-w'
     cmds:
       - go vet ./...
       - go test ./...
+      - npm --prefix frontend run check
+
+  frontend:deps:
+    desc: Install the frontend npm packages as pinned in package-lock.json
+    dir: frontend
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+    cmds:
+      - npm ci --no-fund --no-audit
+
+  frontend:bindings:
+    desc: Generate the TypeScript bindings of the Go services and events
+    sources: ['cmd/shellight/**/*.go', 'internal/**/*.go']
+    generates: ['frontend/bindings/**/*']
+    cmds:
+      - wails3 generate bindings -ts -i -silent -d frontend/bindings ./cmd/shellight
+
+  frontend:build:
+    desc: Build the dashboard frontend into frontend/dist (embedded in the app)
+    deps: [frontend:deps, frontend:bindings]
+    dir: frontend
+    cmds:
+      - npm run build

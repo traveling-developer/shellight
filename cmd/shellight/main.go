@@ -8,6 +8,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"github.com/traveling-developer/shellight/frontend"
 	"github.com/traveling-developer/shellight/internal/gateway"
 	"github.com/traveling-developer/shellight/internal/trayicon"
 )
@@ -19,15 +20,21 @@ var buildID = "dev"
 var whiteGlyph = trayicon.RGB{R: 0xff, G: 0xff, B: 0xff}
 
 func main() {
+	// The dashboard is bound as a service, so it exists before the app.
+	dash := newDashboard()
 	app := application.New(application.Options{
 		Name:        "shellight",
 		Description: "Menu bar app for NVIDIA OpenShell",
+		Services:    []application.Service{application.NewService(dash)},
+		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(frontend.Dist())},
 		Mac: application.MacOptions{
-			// Menu bar app: no Dock icon, keep running without windows.
+			// Menu bar app: no Dock icon (only while the dashboard is
+			// open), keep running without windows.
 			ActivationPolicy: application.ActivationPolicyAccessory,
 			ApplicationShouldTerminateAfterLastWindowClosed: false,
 		},
 	})
+	dash.app = app
 
 	menu := app.NewMenu()
 	// No window is attached, so a click on the icon opens the menu.
@@ -40,12 +47,15 @@ func main() {
 		menu.Clear()
 		dotColour := unknownDot
 		if s == nil {
-			menu.Add("Gateway: connecting…").SetEnabled(false)
+			menu.Add(connecting).SetEnabled(false)
 		} else {
 			addStatus(menu, *s)
 			dotColour = dot(*s)
 		}
 		menu.AddSeparator()
+		menu.Add("Open dashboard…").OnClick(func(*application.Context) {
+			dash.open()
+		})
 		menu.Add("Build " + buildID).SetEnabled(false)
 		menu.Add("Quit").OnClick(func(*application.Context) {
 			app.Quit()
@@ -69,6 +79,7 @@ func main() {
 			if ns := tracker.update(s); len(ns) > 0 {
 				go notes.send(ns)
 			}
+			dash.update(dashboardStatus(&s))
 			application.InvokeSync(func() { render(&s) })
 		})
 	})

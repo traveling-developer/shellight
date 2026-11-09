@@ -10,8 +10,9 @@ proposals and react to them, without replacing the `openshell` CLI.
 
 - **Menu bar:** gateway status, sandboxes with their phase, running port
   forwards.
-- **Dashboard** (planned): sandbox details, policy proposals to approve or
-  reject, services, providers, settings.
+- **Dashboard:** a window with the sandboxes grouped by workspace, updated
+  live; sandbox details, policy proposals to approve or reject, services,
+  providers and settings are planned.
 - **Notifications:** new policy proposals, bundled per sandbox; sandboxes
   that fail or disappear (planned).
 
@@ -25,8 +26,8 @@ CLI's active gateway (auth mode mtls, plaintext or none).
 Everything builds inside the devcontainer:
 
 ```sh
-task check   # go vet and tests
-task app     # build/bin/shellight.app, ad hoc signed
+task check   # go vet, tests and frontend type check
+task app     # build/bin/shellight.app with the frontend, ad hoc signed
 ```
 
 ## Docs

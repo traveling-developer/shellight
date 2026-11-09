@@ -1,0 +1,44 @@
+/* Native macOS look: system font and colours, light and dark. */
+:root {
+  color-scheme: light dark;
+  font: 13px -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+
+  --content-bg: #ffffff;
+  --sidebar-bg: #f0f0f0;
+  --text: rgb(0 0 0 / 85%);
+  --text-secondary: rgb(0 0 0 / 50%);
+  --separator: rgb(0 0 0 / 10%);
+  /* Apple system colours, as the menu bar dot */
+  --ok: #34c759;
+  --busy: #ffcc00;
+  --error: #ff3b30;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --content-bg: #1e1e1e;
+    --sidebar-bg: #2a2a2a;
+    --text: rgb(255 255 255 / 85%);
+    --text-secondary: rgb(255 255 255 / 55%);
+    --separator: rgb(255 255 255 / 10%);
+    --ok: #30d158;
+    --busy: #ffd60a;
+    --error: #ff453a;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--content-bg);
+  color: var(--text);
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  height: 100%;
+}

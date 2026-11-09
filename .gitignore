@@ -1,8 +1,16 @@
 tmp_old/
 .DS_Store
 
-# Build output
+# Build output and the Task checksum cache
 /build/bin/
+/.task/
+
+# Frontend: npm packages, generated bindings, build output (dist keeps a
+# .gitkeep from public/ so the Go embed builds without a frontend build)
+/frontend/node_modules/
+/frontend/bindings/
+/frontend/dist/*
+!/frontend/dist/.gitkeep
 
 # Local test gateway state and credentials
 /.dev/

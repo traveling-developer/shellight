@@ -33,8 +33,9 @@ and docs (e.g. "policy proposal", not "denial", for a pending draft chunk).
 Everything runs inside the devcontainer; nothing runs on the Mac except the
 built app.
 
-- `task check`: go vet and all tests
-- `task app`: cross build and ad hoc sign `build/bin/shellight.app` (darwin/arm64)
+- `task check`: go vet, all tests and the frontend type check (`svelte-check`)
+- `task app`: build the frontend (`frontend/`, Svelte), then cross build and
+  ad hoc sign `build/bin/shellight.app` (darwin/arm64)
 - `scripts/test-gateway.sh up | down | cli <openshell args>`: local test
   gateway (mTLS) on nested Podman; sandbox `fwtest` has a pending policy
   proposal. `up` also starts a second gateway without TLS (auth mode

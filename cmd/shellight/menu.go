@@ -22,6 +22,25 @@ var (
 	errorDot   = trayicon.RGB{R: 0xff, G: 0x3b, B: 0x30} // red
 )
 
+// Phase states, which pick the colour of a sandbox's dot.
+const (
+	phaseOK    = "ok"    // settled
+	phaseBusy  = "busy"  // between phases
+	phaseError = "error" // phase Error
+)
+
+// phaseState sorts a sandbox phase into a phase state.
+func phaseState(phase string) string {
+	switch phase {
+	case "Error":
+		return phaseError
+	case "Ready", "Stopped", "Completed", "Suspended":
+		return phaseOK
+	default: // Provisioning, Starting, Stopping, Deleting, Suspending, Unknown
+		return phaseBusy
+	}
+}
+
 // dot picks the status dot: red if the gateway is unreachable or a sandbox
 // is in phase Error, yellow if a sandbox is between phases, else green.
 func dot(s gateway.Status) trayicon.RGB {
@@ -30,11 +49,10 @@ func dot(s gateway.Status) trayicon.RGB {
 	}
 	busy := false
 	for _, sb := range s.Info.Sandboxes {
-		switch sb.Phase {
-		case "Error":
+		switch phaseState(sb.Phase) {
+		case phaseError:
 			return errorDot
-		case "Ready", "Stopped", "Completed", "Suspended":
-		default: // Provisioning, Starting, Stopping, Deleting, Suspending, Unknown
+		case phaseBusy:
 			busy = true
 		}
 	}
@@ -44,18 +62,31 @@ func dot(s gateway.Status) trayicon.RGB {
 	return okDot
 }
 
+// connecting is the gateway line before the first poll result.
+const connecting = "Gateway: connecting…"
+
+// gatewayLine is the gateway line of a reachable gateway.
+func gatewayLine(s gateway.Status) string {
+	return fmt.Sprintf("Gateway: %s · %s · %s", s.Name, s.Info.Version, strings.Join(s.Info.Drivers, ", "))
+}
+
+// problem says what is wrong with the gateway if s.Err is set.
+func problem(s gateway.Status) string {
+	var unsupported *gateway.UnsupportedAuthModeError
+	switch {
+	case s.Name == "":
+		return "Gateway: not configured"
+	case errors.As(s.Err, &unsupported):
+		return "Gateway: " + s.Name + " — auth mode " + unsupported.Mode + " not supported"
+	default:
+		return "Gateway: " + s.Name + " — unreachable"
+	}
+}
+
 // addStatus adds the gateway line and the sandboxes of s to m.
 func addStatus(m *application.Menu, s gateway.Status) {
 	if s.Err != nil {
-		label := "Gateway: not configured"
-		var unsupported *gateway.UnsupportedAuthModeError
-		switch {
-		case s.Name != "" && errors.As(s.Err, &unsupported):
-			label = "Gateway: " + s.Name + " — auth mode " + unsupported.Mode + " not supported"
-		case s.Name != "":
-			label = "Gateway: " + s.Name + " — unreachable"
-		}
-		sub := m.AddSubmenu(label)
+		sub := m.AddSubmenu(problem(s))
 		if s.Endpoint != "" {
 			sub.Add(s.Endpoint).SetEnabled(false)
 		}
@@ -63,8 +94,7 @@ func addStatus(m *application.Menu, s gateway.Status) {
 		return
 	}
 
-	m.Add(fmt.Sprintf("Gateway: %s · %s · %s",
-		s.Name, s.Info.Version, strings.Join(s.Info.Drivers, ", "))).SetEnabled(false)
+	m.Add(gatewayLine(s)).SetEnabled(false)
 	m.AddSeparator()
 	if len(s.Info.Sandboxes) == 0 {
 		m.Add("No sandboxes").SetEnabled(false)
