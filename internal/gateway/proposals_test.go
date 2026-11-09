@@ -70,11 +70,13 @@ func TestProposals(t *testing.T) {
 		chunk("c", "pending", "ports.ubuntu.com", 80, "/usr/lib/apt/methods/http"),
 		multi,
 		{ID: "a", Status: "pending", Binary: "/bin/true"}, // no proposed rule
+		{ID: "d", Status: "pending", Binary: "/bin/true", SupersedesChunkID: "a0"},
 	})
 	want := []PolicyProposal{ // sorted by ID
 		{ID: "a", Binary: "/bin/true"},
 		{ID: "b", Endpoints: []string{"api.example.com:443", "api.example.com:8443", "[::1]:80"}, Binary: "/usr/bin/node"},
 		{ID: "c", Endpoints: []string{"ports.ubuntu.com:80"}, Binary: "/usr/lib/apt/methods/http"},
+		{ID: "d", Binary: "/bin/true", Supersedes: "a0"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("proposals =\n%+v\nwant\n%+v", got, want)

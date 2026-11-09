@@ -62,8 +62,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	app.OnShutdown(cancel)
 	// Menu updates only take effect once the app runs.
+	var tracker proposalTracker
+	var notes notifier
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		go gateway.Poll(ctx, func(s gateway.Status) {
+			if ns := tracker.update(s); len(ns) > 0 {
+				go notes.send(ns)
+			}
 			application.InvokeSync(func() { render(&s) })
 		})
 	})

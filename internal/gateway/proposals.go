@@ -17,6 +17,9 @@ type PolicyProposal struct {
 	ID        string   // chunk ID
 	Endpoints []string // host:port that was denied
 	Binary    string   // the binary that made the request
+	// Supersedes is the ID of the chunk this refined chunk replaces, else
+	// empty.
+	Supersedes string
 }
 
 // attachProposals reads the pending policy proposals of each sandbox. If
@@ -54,7 +57,7 @@ func fetchProposals(ctx context.Context, sdk v1.ClientInterface, workspace, name
 func proposals(chunks []v1.PolicyChunk) []PolicyProposal {
 	var props []PolicyProposal
 	for _, c := range chunks {
-		prop := PolicyProposal{ID: c.ID, Binary: c.Binary}
+		prop := PolicyProposal{ID: c.ID, Binary: c.Binary, Supersedes: c.SupersedesChunkID}
 		if c.ProposedRule != nil {
 			for _, ep := range c.ProposedRule.Endpoints {
 				for _, p := range ep.Ports {

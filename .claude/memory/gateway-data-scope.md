@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 3d2f5269-054f-4e48-ae3e-a2356fbe35b5
-  modified: 2026-11-08T18:19:19.925Z
+  modified: 2026-11-09T15:58:11.949Z
 ---
 
 Decided by the user on 2026-11-08:
@@ -17,7 +17,7 @@ Decided by the user on 2026-11-08:
 - **Polling:** every 5 s, back off to 30 s on errors (confirmed 2026-11-08). No push for the sandbox list or gateway health exists; `WatchSandbox` streams only one named sandbox. No menu-will-open hook in Wails on macOS (only a custom OnClick, which loses native menu tracking).
 
 - **Port forwards (decided 2026-11-08, step D):** run `openshell forward list -o json` each poll round (the SDK cannot list CLI forwards; it is local CLI state at `<config>/openshell/forwards/<ws>/<sandbox>-<port>.pid` and has no gateway field). Show bind:port of running forwards only (dead ones hidden, review 2026-11-08) in the submenu of their sandbox; forwards for sandboxes the active gateway does not list are dropped. One action: open http://bind:port in the browser. No stop action. Finder apps have no shell PATH, so the binary is looked up on PATH and then at /opt/homebrew/bin and /usr/local/bin.
-- **Policy proposals (decided 2026-11-08, step E):** source is the draft inbox, `Policy().GetDraft` per sandbox each poll round (the SDK's `Sandboxes().Watch` only follows status, and the `DraftPolicyUpdate` push in the proto is not exposed by the SDK, so no per-sandbox streams). Show chunks with status pending only (server-side filter; rejected dropped in review 2026-11-08, "start with pending"); fields: chunk ID, endpoint (host:port) and binary. A failing GetDraft sets `Status.ProposalErr` like ForwardErr and does not fail the round. Not wanted: OCSF log lines, hit count, rationale, list in the menu, count in the sandbox line, status dot. Visibility: a macOS notification per new policy proposal; clicking it opens a window that shows the proposal. the user: "nicht alles auf einmal", so split: E1 read the proposals (no UI), E2 notification, E3 window on click. Approve/reject is a later step.
+- **Policy proposals (decided 2026-11-08, step E):** source is the draft inbox, `Policy().GetDraft` per sandbox each poll round (the SDK's `Sandboxes().Watch` only follows status, and the `DraftPolicyUpdate` push in the proto is not exposed by the SDK, so no per-sandbox streams). Show chunks with status pending only (server-side filter; rejected dropped in review 2026-11-08, "start with pending"); fields: chunk ID, endpoint (host:port) and binary. A failing GetDraft sets `Status.ProposalErr` like ForwardErr and does not fail the round. Not wanted: OCSF log lines, hit count, rationale, list in the menu, count in the sandbox line, status dot. Visibility: a macOS notification for new policy proposals, one per sandbox and poll round; clicking it opens a window that shows the proposal. the user: "nicht alles auf einmal", so split: E1 read the proposals (no UI), E2 notification, E3 window on click. Approve/reject is a later step.
 
 **Why:** The user picked these from the full list of what the API and CLI offer.
 **How to apply:** Build only these fields; ask before adding others. Related: [[current-step]], [[product-vision]].

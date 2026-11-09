@@ -12,8 +12,8 @@ proposals and react to them, without replacing the `openshell` CLI.
   forwards.
 - **Dashboard** (planned): sandbox details, policy proposals to approve or
   reject, services, providers, settings.
-- **Notifications** (planned): new policy proposals, sandboxes that fail or
-  disappear.
+- **Notifications:** new policy proposals, bundled per sandbox; sandboxes
+  that fail or disappear (planned).
 
 ## Requirements
 
