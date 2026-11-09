@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -47,7 +48,11 @@ func dot(s gateway.Status) trayicon.RGB {
 func addStatus(m *application.Menu, s gateway.Status) {
 	if s.Err != nil {
 		label := "Gateway: not configured"
-		if s.Name != "" {
+		var unsupported *gateway.UnsupportedAuthModeError
+		switch {
+		case s.Name != "" && errors.As(s.Err, &unsupported):
+			label = "Gateway: " + s.Name + " — auth mode " + unsupported.Mode + " not supported"
+		case s.Name != "":
 			label = "Gateway: " + s.Name + " — unreachable"
 		}
 		sub := m.AddSubmenu(label)

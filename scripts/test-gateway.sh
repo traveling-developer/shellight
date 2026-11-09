@@ -4,16 +4,18 @@
 # https://docs.nvidia.com/openshell/v0.1.7/how-it-works/gateways/container-deployment.md
 #
 # State, mTLS bundle and CLI config live in .dev/test-gateway (git ignored).
+# A second gateway without TLS (auth mode plaintext) runs next to it, with its
+# own state and CLI config in .dev/test-gateway-plaintext; it has no sandboxes.
 
 set -euo pipefail
 
 usage() {
   cat <<EOF
 Usage: $0 <command>
-  up       start Podman service and gateway, register the CLI
-  down     delete all sandboxes and remove the gateway container
-           (keeps .dev/test-gateway; delete it for a full reset)
-  cli ...  run an openshell command against the test gateway
+  up       start Podman service and both gateways, register the CLI
+  down     delete all sandboxes and remove both gateway containers
+           (keeps .dev/test-gateway*; delete them for a full reset)
+  cli ...  run an openshell command against the mTLS test gateway
 EOF
   exit 1
 }
@@ -29,6 +31,12 @@ DATA_DIR="$(cd "$(dirname "$0")/.." && pwd)/.dev/test-gateway"
 TLS_DIR="$DATA_DIR/tls"
 CLI_CONFIG="$DATA_DIR/cli-config"
 
+PLAIN_CONTAINER_NAME="shellight-test-plaintext"
+PLAIN_GATEWAY_NAME="shellight-test-plaintext"
+PLAIN_PORT="17691"
+PLAIN_DATA_DIR="$DATA_DIR-plaintext"
+PLAIN_CLI_CONFIG="$PLAIN_DATA_DIR/cli-config"
+
 log() { printf '==> %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
@@ -37,6 +45,13 @@ os() {
   XDG_CONFIG_HOME="$CLI_CONFIG" \
   OPENSHELL_LOCAL_TLS_DIR="$TLS_DIR" \
   OPENSHELL_GATEWAY="$GATEWAY_NAME" \
+    openshell "$@"
+}
+
+# openshell CLI against the plaintext gateway, with its own config dir.
+os_plain() {
+  XDG_CONFIG_HOME="$PLAIN_CLI_CONFIG" \
+  OPENSHELL_GATEWAY="$PLAIN_GATEWAY_NAME" \
     openshell "$@"
 }
 
@@ -89,6 +104,39 @@ start_gateway() {
     --bind-address 0.0.0.0 --port "$PORT" >/dev/null
 }
 
+# The plaintext gateway needs no certificates; it only serves the live test
+# for auth mode plaintext, so no sandbox runs on it.
+start_plaintext_gateway() {
+  if podman container exists "$PLAIN_CONTAINER_NAME"; then
+    podman start "$PLAIN_CONTAINER_NAME" >/dev/null
+    return
+  fi
+  # Without TLS there is no user authentication; the gateway refuses
+  # requests unless that is allowed explicitly.
+  cat >"$PLAIN_DATA_DIR/gateway.toml" <<'TOML'
+[openshell]
+version = 2
+
+[openshell.gateway.auth]
+allow_unauthenticated_users = true
+TOML
+  log "starting $PLAIN_CONTAINER_NAME on 127.0.0.1:$PLAIN_PORT (no TLS)"
+  podman run -d \
+    --name "$PLAIN_CONTAINER_NAME" \
+    --userns=keep-id:uid=1000,gid=1000 \
+    -p "127.0.0.1:$PLAIN_PORT:$PLAIN_PORT" \
+    -v "$PLAIN_DATA_DIR:$PLAIN_DATA_DIR" \
+    -v "$PODMAN_SOCK:/var/run/podman.sock" \
+    -e HOME="$PLAIN_DATA_DIR" \
+    -e XDG_DATA_HOME="$PLAIN_DATA_DIR" \
+    -e OPENSHELL_COMPUTE_DRIVER=podman \
+    -e OPENSHELL_PODMAN_SOCKET=/var/run/podman.sock \
+    -e "OPENSHELL_DB_URL=sqlite:$PLAIN_DATA_DIR/gateway.db" \
+    "$GATEWAY_IMAGE" \
+    --config "$PLAIN_DATA_DIR/gateway.toml" \
+    --bind-address 0.0.0.0 --port "$PLAIN_PORT" --disable-tls >/dev/null
+}
+
 register_cli() {
   [ -f "$CLI_CONFIG/openshell/gateways/$GATEWAY_NAME/metadata.json" ] && return
   log "registering $GATEWAY_NAME in $CLI_CONFIG"
@@ -96,28 +144,40 @@ register_cli() {
   os gateway add "https://127.0.0.1:$PORT" --local --name "$GATEWAY_NAME"
 }
 
+register_plaintext_cli() {
+  [ -f "$PLAIN_CLI_CONFIG/openshell/gateways/$PLAIN_GATEWAY_NAME/metadata.json" ] && return
+  log "registering $PLAIN_GATEWAY_NAME in $PLAIN_CLI_CONFIG"
+  mkdir -p "$PLAIN_CLI_CONFIG"
+  # An http:// endpoint registers with auth mode plaintext.
+  os_plain gateway add "http://127.0.0.1:$PLAIN_PORT" --local --name "$PLAIN_GATEWAY_NAME"
+}
+
+# wait_healthy <cli function> <container>
 wait_healthy() {
-  log "waiting for gateway"
+  log "waiting for $2"
   for _ in $(seq 30); do
-    # `sandbox list` needs a working mTLS connection; `status` may exit 0 while disconnected.
-    if os sandbox list >/dev/null 2>&1; then
-      os status
+    # `sandbox list` needs a working connection; `status` may exit 0 while disconnected.
+    if "$1" sandbox list >/dev/null 2>&1; then
+      "$1" status
       return
     fi
     sleep 2
   done
-  podman logs --tail 50 "$CONTAINER_NAME" >&2 || true
-  die "gateway did not become healthy within 60 s"
+  podman logs --tail 50 "$2" >&2 || true
+  die "$2 did not become healthy within 60 s"
 }
 
 cmd_up() {
   [ -c /dev/net/tun ] || die "/dev/net/tun missing (see runArgs in devcontainer.json)"
-  mkdir -p "$DATA_DIR"
+  mkdir -p "$DATA_DIR" "$PLAIN_DATA_DIR"
   ensure_podman_service
   generate_certs
   start_gateway
+  start_plaintext_gateway
   register_cli
-  wait_healthy
+  register_plaintext_cli
+  wait_healthy os "$CONTAINER_NAME"
+  wait_healthy os_plain "$PLAIN_CONTAINER_NAME"
 }
 
 cmd_down() {
@@ -132,6 +192,10 @@ cmd_down() {
     done
     log "removing $CONTAINER_NAME"
     podman rm -f "$CONTAINER_NAME" >/dev/null
+  fi
+  if podman container exists "$PLAIN_CONTAINER_NAME"; then
+    log "removing $PLAIN_CONTAINER_NAME"
+    podman rm -f "$PLAIN_CONTAINER_NAME" >/dev/null
   fi
 }
 

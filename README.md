@@ -18,7 +18,7 @@ proposals and react to them, without replacing the `openshell` CLI.
 ## Requirements
 
 An installed and configured `openshell` CLI. shellight always follows the
-CLI's active gateway (auth mode mtls).
+CLI's active gateway (auth mode mtls, plaintext or none).
 
 ## Build
 

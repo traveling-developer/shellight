@@ -36,9 +36,11 @@ built app.
 - `task check`: go vet and all tests
 - `task app`: cross build and ad hoc sign `build/bin/shellight.app` (darwin/arm64)
 - `scripts/test-gateway.sh up | down | cli <openshell args>`: local test
-  gateway on nested Podman; sandbox `fwtest` has a pending policy proposal
+  gateway (mTLS) on nested Podman; sandbox `fwtest` has a pending policy
+  proposal. `up` also starts a second gateway without TLS (auth mode
+  plaintext, no sandboxes, config under `.dev/test-gateway-plaintext/`)
 - `SHELLIGHT_LIVE=1 go test ./internal/gateway -run Live -v`: live tests
-  against the test gateway
+  against both test gateways
 
 Host check: the user quits the running shellight, double-clicks
 `build/bin/shellight.app` on the Mac and reports back. The menu shows the

@@ -100,9 +100,15 @@ func poll(ctx context.Context) Status {
 		return Status{Err: err}
 	}
 	s := Status{Name: cfg.Name, Endpoint: cfg.Endpoint}
-	sdk, err := dial(cfg)
+	conf, err := clientConfig(cfg)
 	if err != nil {
 		s.Err = err
+		return s
+	}
+	// The connection opens on the first call.
+	sdk, err := v1.NewClient(conf)
+	if err != nil {
+		s.Err = fmt.Errorf("gateway %q: %w", cfg.Name, err)
 		return s
 	}
 	defer sdk.Close()
@@ -137,30 +143,39 @@ func loadConfig() (*sdkgw.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gateway config: %w", err)
 	}
-	if cfg.AuthMode != sdkgw.AuthModeMTLS {
-		return nil, fmt.Errorf("gateway %q: auth mode %q not supported (only mtls)", cfg.Name, cfg.AuthMode)
-	}
 	return cfg, nil
 }
 
-// dial sets up an mTLS client for cfg. The connection opens on the first
-// call.
-func dial(cfg *sdkgw.Config) (v1.ClientInterface, error) {
-	// The CLI keeps the client mTLS bundle next to metadata.json; the SDK
-	// does not load it for auth mode mtls.
-	mtls := filepath.Join(cfg.Dir, "mtls")
-	sdk, err := v1.NewClient(v1.Config{
-		Address: cfg.Endpoint,
-		TLS: &v1.TLSConfig{
+// UnsupportedAuthModeError says that the active gateway uses an auth mode
+// shellight does not support: only those of a local gateway are (ADR 0001).
+type UnsupportedAuthModeError struct {
+	Mode string // oidc, cloudflare_jwt
+}
+
+func (e *UnsupportedAuthModeError) Error() string {
+	return fmt.Sprintf("shellight supports the auth modes mtls, plaintext and none, not %s", e.Mode)
+}
+
+// clientConfig maps the auth mode of cfg to an SDK client config. mtls
+// uses the CLI's client bundle. plaintext and none connect without client
+// credentials; the CLI registers them for http:// endpoints.
+func clientConfig(cfg *sdkgw.Config) (v1.Config, error) {
+	conf := v1.Config{Address: cfg.Endpoint}
+	switch cfg.AuthMode {
+	case sdkgw.AuthModeMTLS:
+		// The CLI keeps the client mTLS bundle next to metadata.json; the
+		// SDK does not load it for auth mode mtls.
+		mtls := filepath.Join(cfg.Dir, "mtls")
+		conf.TLS = &v1.TLSConfig{
 			CAFile:   filepath.Join(mtls, "ca.crt"),
 			CertFile: filepath.Join(mtls, "tls.crt"),
 			KeyFile:  filepath.Join(mtls, "tls.key"),
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("gateway %q: %w", cfg.Name, err)
+		}
+	case sdkgw.AuthModePlaintext, sdkgw.AuthModeNone:
+	default:
+		return v1.Config{}, &UnsupportedAuthModeError{Mode: string(cfg.AuthMode)}
 	}
-	return sdk, nil
+	return conf, nil
 }
 
 // fetch reads the gateway info and the sandboxes of all workspaces.

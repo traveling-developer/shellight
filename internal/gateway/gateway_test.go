@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/fake"
+	sdkgw "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/gateway"
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
 )
 
@@ -117,6 +119,43 @@ func TestReason(t *testing.T) {
 	}
 }
 
+func TestClientConfig(t *testing.T) {
+	mtls := &v1.TLSConfig{
+		CAFile:   "/gw/mtls/ca.crt",
+		CertFile: "/gw/mtls/tls.crt",
+		KeyFile:  "/gw/mtls/tls.key",
+	}
+	tests := []struct {
+		mode     sdkgw.AuthMode
+		endpoint string
+		want     v1.Config // zero if unsupported
+	}{
+		{sdkgw.AuthModeMTLS, "https://127.0.0.1:17690", v1.Config{Address: "https://127.0.0.1:17690", TLS: mtls}},
+		{sdkgw.AuthModePlaintext, "http://127.0.0.1:17691", v1.Config{Address: "http://127.0.0.1:17691"}},
+		{sdkgw.AuthModeNone, "http://127.0.0.1:8080", v1.Config{Address: "http://127.0.0.1:8080"}},
+		{sdkgw.AuthModeOIDC, "https://gw.example:443", v1.Config{}},
+		{sdkgw.AuthModeCloudflareJWT, "https://gw.example:443", v1.Config{}},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.mode)+" "+tt.endpoint, func(t *testing.T) {
+			got, err := clientConfig(&sdkgw.Config{Name: "gw", Endpoint: tt.endpoint, AuthMode: tt.mode, Dir: "/gw"})
+			var unsupported *UnsupportedAuthModeError
+			if tt.want == (v1.Config{}) {
+				if !errors.As(err, &unsupported) || unsupported.Mode != string(tt.mode) {
+					t.Errorf("err = %v, want unsupported auth mode %s", err, tt.mode)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("config = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // writeConfig writes a CLI config with one active gateway into a temp dir
 // and points XDG_CONFIG_HOME at it.
 func writeConfig(t *testing.T, metadata string) {
@@ -145,9 +184,11 @@ func TestPollErrors(t *testing.T) {
 			t.Errorf("poll = %+v", s)
 		}
 	})
-	t.Run("auth mode not mtls", func(t *testing.T) {
-		writeConfig(t, `{"gateway_endpoint":"http://127.0.0.1:17690","auth_mode":"plaintext"}`)
-		if s := poll(context.Background()); s.Err == nil {
+	t.Run("auth mode not supported", func(t *testing.T) {
+		writeConfig(t, `{"gateway_endpoint":"https://gw.example:443","auth_mode":"oidc"}`)
+		s := poll(context.Background())
+		var unsupported *UnsupportedAuthModeError
+		if !errors.As(s.Err, &unsupported) || s.Name != "gw" {
 			t.Errorf("poll = %+v", s)
 		}
 	})
@@ -159,14 +200,30 @@ func TestPollErrors(t *testing.T) {
 	})
 }
 
-// TestLive polls the test gateway (scripts/test-gateway.sh up):
+// TestLive polls the mTLS test gateway (scripts/test-gateway.sh up):
 //
 //	SHELLIGHT_LIVE=1 go test ./internal/gateway -run Live -v
 func TestLive(t *testing.T) {
+	s := livePoll(t, "test-gateway", "shellight-test")
+	if !hasProposal(s.Info.Sandboxes, "fwtest", "ports.ubuntu.com:80") {
+		t.Error("sandbox fwtest has no pending policy proposal for ports.ubuntu.com:80")
+	}
+}
+
+// TestLivePlaintext polls the test gateway without TLS (auth mode
+// plaintext), which scripts/test-gateway.sh up starts next to the mTLS one.
+func TestLivePlaintext(t *testing.T) {
+	livePoll(t, "test-gateway-plaintext", "shellight-test-plaintext")
+}
+
+// livePoll runs one poll round with the CLI config of the test gateway in
+// .dev/<dir> and checks that it reached the gateway named name.
+func livePoll(t *testing.T, dir, name string) Status {
+	t.Helper()
 	if os.Getenv("SHELLIGHT_LIVE") == "" {
 		t.Skip("set SHELLIGHT_LIVE=1 to run against the test gateway")
 	}
-	xdg, err := filepath.Abs("../../.dev/test-gateway/cli-config")
+	xdg, err := filepath.Abs(filepath.Join("../../.dev", dir, "cli-config"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +233,7 @@ func TestLive(t *testing.T) {
 	if s.Err != nil {
 		t.Fatal(s.Err)
 	}
-	if s.Name != "shellight-test" || s.Info.Version == "" || len(s.Info.Drivers) == 0 {
+	if s.Name != name || s.Info.Version == "" || len(s.Info.Drivers) == 0 {
 		t.Errorf("status = %+v", s)
 	}
 	if s.ForwardErr != nil {
@@ -185,10 +242,8 @@ func TestLive(t *testing.T) {
 	if s.ProposalErr != nil {
 		t.Error(s.ProposalErr)
 	}
-	if !hasProposal(s.Info.Sandboxes, "fwtest", "ports.ubuntu.com:80") {
-		t.Error("sandbox fwtest has no pending policy proposal for ports.ubuntu.com:80")
-	}
 	t.Logf("%+v", s)
+	return s
 }
 
 // hasProposal reports whether the sandbox named sandbox has a policy

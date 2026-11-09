@@ -141,3 +141,26 @@ func TestWrap(t *testing.T) {
 		t.Errorf("wrap = %q, want %q", got, want)
 	}
 }
+
+func TestAddStatusErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		s    gateway.Status
+		want string
+	}{
+		{"not configured", gateway.Status{Err: errors.New("no active gateway")}, "Gateway: not configured"},
+		{"unreachable", gateway.Status{Name: "gw", Err: errors.New("down")}, "Gateway: gw — unreachable"},
+		{"auth mode not supported",
+			gateway.Status{Name: "gw", Err: &gateway.UnsupportedAuthModeError{Mode: "oidc"}},
+			"Gateway: gw — auth mode oidc not supported"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := application.NewMenu()
+			addStatus(m, tt.s)
+			if got := labels(m); !reflect.DeepEqual(got, []string{tt.want}) {
+				t.Errorf("menu = %q, want %q", got, []string{tt.want})
+			}
+		})
+	}
+}
