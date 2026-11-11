@@ -126,7 +126,8 @@ func TestAddStatusForwards(t *testing.T) {
 
 func TestBrowseHost(t *testing.T) {
 	for bind, want := range map[string]string{
-		"127.0.0.1": "127.0.0.1", "::1": "::1", "0.0.0.0": "localhost", "::": "localhost",
+		"127.0.0.1": "localhost", "::1": "localhost", "0.0.0.0": "localhost", "::": "localhost",
+		"127.0.0.2": "127.0.0.2", "192.168.1.20": "192.168.1.20", "fe80::1": "fe80::1",
 	} {
 		if got := browseHost(bind); got != want {
 			t.Errorf("browseHost(%q) = %q, want %q", bind, got, want)

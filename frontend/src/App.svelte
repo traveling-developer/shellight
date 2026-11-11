@@ -1,21 +1,54 @@
 <script lang="ts">
   import { Events } from "@wailsio/runtime";
   import { DashboardStatus as statusEvent } from "../bindings/events/index.js";
-  import { Dashboard, type DashboardStatus } from "../bindings/github.com/traveling-developer/shellight/cmd/shellight/index.js";
+  import {
+    Dashboard,
+    type DashboardSandbox,
+    type DashboardStatus,
+  } from "../bindings/github.com/traveling-developer/shellight/cmd/shellight/index.js";
+  import SandboxDetails from "./SandboxDetails.svelte";
   import StatusShape from "./StatusShape.svelte";
 
+  // A sandbox is identified by its workspace and name.
+  type SandboxKey = { workspace: string; name: string };
+
   // null until the first answer from Go.
-  let status: DashboardStatus | null = $state(null);
+  let status = $state<DashboardStatus | null>(null);
+  let selected = $state<SandboxKey | null>(null);
+  // The first sandbox is selected once, when the first sandboxes arrive.
+  let autoSelected = false;
+
+  const sandboxes = $derived((status?.workspaces ?? []).flatMap((ws) => ws.sandboxes ?? []));
+  const selectedSandbox = $derived(sandboxes.find((sb) => isSelected(sb)) ?? null);
+
+  function isSelected(sb: DashboardSandbox): boolean {
+    return sb.workspace === selected?.workspace && sb.name === selected?.name;
+  }
+
+  function select(sb: DashboardSandbox) {
+    selected = { workspace: sb.workspace, name: sb.name };
+  }
+
+  // apply shows s. The selection is kept while its sandbox is missing, so a
+  // sandbox that is gone shows no details, and one that comes back (e.g.
+  // after a gateway outage) is selected again.
+  function apply(s: DashboardStatus) {
+    status = s;
+    if (!autoSelected && sandboxes.length > 0) {
+      autoSelected = true;
+      select(sandboxes[0]);
+    }
+  }
 
   // Follow the poll rounds first, then ask for the current status, so no
   // update in between is lost; a pushed status is newer than the answer.
   let pushed = false;
   Events.On(statusEvent, (ev) => {
     pushed = true;
-    status = ev.data;
+    apply(ev.data);
   });
   Dashboard.Status().then((s) => {
-    if (!pushed) status = s;
+    if (!pushed) apply(s);
   });
 </script>
 
@@ -30,9 +63,11 @@
           <ul>
             {#each ws.sandboxes ?? [] as sb (sb.name)}
               <li>
-                <StatusShape state={sb.state} />
-                <span class="name">{sb.name}</span>
-                <span class="phase" class:error={sb.state === "error"}>{sb.phase}</span>
+                <button class:selected={isSelected(sb)} onclick={() => select(sb)}>
+                  <StatusShape state={sb.state} />
+                  <span class="name">{sb.name}</span>
+                  <span class="phase" class:error={sb.state === "error"}>{sb.phase}</span>
+                </button>
               </li>
             {/each}
           </ul>
@@ -45,12 +80,16 @@
 
   <main class="content">
     {#if status?.problem}
-      <h1>{status.problem}</h1>
-      {#if status.detail}
-        <p class="detail">{status.detail}</p>
-      {/if}
-    {:else if status}
-      <p>{status.gateway}</p>
+      <div>
+        <h1>{status.problem}</h1>
+        {#if status.detail}
+          <p class="detail">{status.detail}</p>
+        {/if}
+      </div>
+    {:else if selectedSandbox}
+      <SandboxDetails sandbox={selectedSandbox} forwardErr={status?.forwardErr ?? ""} />
+    {:else if sandboxes.length > 0}
+      <p class="hint">No sandbox selected</p>
     {/if}
   </main>
 </div>
@@ -102,12 +141,26 @@
     list-style: none;
   }
 
-  li {
+  li button {
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
     padding: 7px 8px;
+    border: 0;
     border-radius: 6px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  li button.selected {
+    background: var(--selected-bg);
+  }
+
+  .selected .name {
+    font-weight: 600;
   }
 
   .name {
@@ -118,7 +171,8 @@
   }
 
   .phase,
-  .empty {
+  .empty,
+  .hint {
     color: var(--text-secondary);
   }
 
@@ -132,8 +186,16 @@
 
   .content {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
     overflow-y: auto;
     padding: 22px 28px 28px;
+  }
+
+  .hint {
+    margin: 0;
   }
 
   h1 {

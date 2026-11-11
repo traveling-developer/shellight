@@ -127,19 +127,28 @@ func addStatus(m *application.Menu, s gateway.Status) {
 // addForward adds a port forward as "bind:port", which opens it in the
 // browser.
 func addForward(m *application.Menu, f gateway.Forward) {
-	port := strconv.Itoa(f.Port)
-	url := "http://" + net.JoinHostPort(browseHost(f.Bind), port)
-	m.Add(net.JoinHostPort(f.Bind, port)).OnClick(func(*application.Context) {
+	_, url := forwardTarget(f)
+	m.Add(net.JoinHostPort(f.Bind, strconv.Itoa(f.Port))).OnClick(func(*application.Context) {
 		if err := application.Get().Browser.OpenURL(url); err != nil {
 			log.Printf("open %s: %v", url, err)
 		}
 	})
 }
 
-// browseHost is the host to open a forward bound to bind: a wildcard
-// address is not reachable as such, so use localhost.
+// forwardTarget returns what to open for a forward: its "host:port" and its
+// http URL.
+func forwardTarget(f gateway.Forward) (hostPort, url string) {
+	hostPort = net.JoinHostPort(browseHost(f.Bind), strconv.Itoa(f.Port))
+	return hostPort, "http://" + hostPort
+}
+
+// browseHost is the host to open a forward bound to bind: localhost for the
+// loopback address, and for a wildcard address, which is not reachable as
+// such. Other loopback addresses such as 127.0.0.2 stay, as localhost does
+// not reach them.
 func browseHost(bind string) string {
-	if bind == "0.0.0.0" || bind == "::" {
+	switch bind {
+	case "127.0.0.1", "::1", "0.0.0.0", "::":
 		return "localhost"
 	}
 	return bind

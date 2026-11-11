@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -79,7 +80,7 @@ func main() {
 			if ns := tracker.update(s); len(ns) > 0 {
 				go notes.send(ns)
 			}
-			dash.update(dashboardStatus(&s))
+			dash.update(dashboardStatus(&s, time.Now()))
 			application.InvokeSync(func() { render(&s) })
 		})
 	})

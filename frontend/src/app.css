@@ -9,6 +9,14 @@
   --separator: #e2e5dd;
   --text: #1c1e1a;
   --text-secondary: #6b6f66;
+  --text-subtitle: #4f5449;
+  --selected-bg: #e4f4a8;
+  --tile-bg: #fafbf8;
+  --link: #3e6b00;
+  --link-hover: #2a4a00;
+  /* Red-tinted box for errors */
+  --error-box-bg: #fdf3f1;
+  --error-box-text: #b12a19;
   /* Phase states */
   --ok: #3e6b00;
   --busy: #b4560b;
@@ -22,6 +30,13 @@
     --separator: #34382f;
     --text: #eceee6;
     --text-secondary: #a3a89a;
+    --text-subtitle: #a3a89a;
+    --selected-bg: #3a4520;
+    --tile-bg: #23261f;
+    --link: #c6ee5a;
+    --link-hover: #ddf79a;
+    --error-box-bg: #3a2420;
+    --error-box-text: #ffb0a3;
     --ok: #b8e62a;
     --busy: #f2b84b;
     --error: #ff7a66;
@@ -41,4 +56,16 @@ body {
 
 #app {
   height: 100%;
+}
+
+/* Red-tinted box for an error text; the text can be selected and copied. */
+.error-box {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--error-box-bg);
+  color: var(--error-box-text);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
 }
