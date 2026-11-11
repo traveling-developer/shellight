@@ -2,6 +2,7 @@
   import { Events } from "@wailsio/runtime";
   import { DashboardStatus as statusEvent } from "../bindings/events/index.js";
   import { Dashboard, type DashboardStatus } from "../bindings/github.com/traveling-developer/shellight/cmd/shellight/index.js";
+  import StatusShape from "./StatusShape.svelte";
 
   // null until the first answer from Go.
   let status: DashboardStatus | null = $state(null);
@@ -20,22 +21,26 @@
 
 <div class="layout">
   <aside class="sidebar">
-    {#if status && !status.problem}
-      {#each status.workspaces ?? [] as ws (ws.name)}
-        <h2>{ws.name}</h2>
-        <ul>
-          {#each ws.sandboxes ?? [] as sb (sb.name)}
-            <li>
-              <span class="dot" data-state={sb.state}></span>
-              <span class="name">{sb.name}</span>
-              <span class="phase">{sb.phase}</span>
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="empty">No sandboxes</p>
-      {/each}
-    {/if}
+    <!-- Room for the traffic lights; the window is dragged by it. -->
+    <div class="titlebar"></div>
+    <nav>
+      {#if status && !status.problem}
+        {#each status.workspaces ?? [] as ws (ws.name)}
+          <h2>{ws.name}</h2>
+          <ul>
+            {#each ws.sandboxes ?? [] as sb (sb.name)}
+              <li>
+                <StatusShape state={sb.state} />
+                <span class="name">{sb.name}</span>
+                <span class="phase" class:error={sb.state === "error"}>{sb.phase}</span>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="empty">No sandboxes</p>
+        {/each}
+      {/if}
+    </nav>
   </aside>
 
   <main class="content">
@@ -57,22 +62,41 @@
   }
 
   .sidebar {
-    flex: 0 0 240px;
-    overflow-y: auto;
-    padding: 8px 10px;
-    box-sizing: border-box;
+    flex: 0 0 220px;
+    display: flex;
+    flex-direction: column;
     background: var(--sidebar-bg);
     border-right: 1px solid var(--separator);
   }
 
+  .titlebar {
+    flex: none;
+    height: 40px;
+    --wails-draggable: drag;
+  }
+
+  nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 10px 14px;
+  }
+
   h2 {
-    margin: 12px 8px 4px;
+    margin: 0;
+    padding: 14px 8px 4px;
     font-size: 11px;
     font-weight: 600;
     color: var(--text-secondary);
   }
 
+  h2:first-child {
+    padding-top: 6px;
+  }
+
   ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -81,28 +105,9 @@
   li {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
+    gap: 8px;
+    padding: 7px 8px;
     border-radius: 6px;
-  }
-
-  .dot {
-    flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-
-  .dot[data-state="ok"] {
-    background: var(--ok);
-  }
-
-  .dot[data-state="busy"] {
-    background: var(--busy);
-  }
-
-  .dot[data-state="error"] {
-    background: var(--error);
   }
 
   .name {
@@ -117,14 +122,18 @@
     color: var(--text-secondary);
   }
 
+  .phase.error {
+    color: var(--error);
+  }
+
   .empty {
-    margin: 12px 8px;
+    margin: 6px 8px;
   }
 
   .content {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 24px;
+    padding: 22px 28px 28px;
   }
 
   h1 {

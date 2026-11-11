@@ -36,7 +36,7 @@ type DashboardWorkspace struct {
 type DashboardSandbox struct {
 	Name  string `json:"name"`
 	Phase string `json:"phase"`
-	State string `json:"state"` // ok, busy or error: the colour of its dot
+	State string `json:"state"` // ok, busy or error: its status shape
 }
 
 // dashboardStatus turns a poll result into what the dashboard shows; s is
@@ -109,6 +109,9 @@ func (d *Dashboard) open() {
 			MinWidth:  600,
 			MinHeight: 400,
 			URL:       "/",
+			// No visible title bar: the sidebar runs up under the
+			// traffic lights, its top drags the window.
+			Mac: application.MacWindow{TitleBar: application.MacTitleBarHiddenInset},
 		})
 		w.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
 			d.mu.Lock()

@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: eb572603-07cb-46af-ae88-103357b7e230
-  modified: 2026-11-08T18:19:20.930Z
+  modified: 2026-11-11T09:36:55.426Z
 ---
 
 Decided by the user in the grilling session on 2026-11-08:
@@ -17,10 +17,11 @@ Decided by the user in the grilling session on 2026-11-08:
 - **CLI:** a prerequisite; shellight follows the CLI's active gateway, with no onboarding, login or gateway switcher of its own.
 - **Auth modes:** mtls, plaintext and none; oidc and cloudflare_jwt get a clear "not supported" message.
 - **Actions:** approve/reject a policy proposal, open a port forward in the browser, stop a port forward, open a shell into a sandbox in a terminal, restart the gateway (brew services). Not now: start forward, suspend/resume, create/delete sandbox.
-- **Menu vs dashboard:** menu = status dot, gateway line, sandboxes with name + phase only, running forwards (open), "Open dashboard…", Quit. Dashboard = sandbox details (workspace, created, policy version, reason), policy proposals with approve/reject, other actions. Policy proposals never show in the menu.
+- **Menu vs dashboard:** menu = status dot, gateway line ("Gateway: name · auth mode", 2026-11-11), sandboxes with name + phase only, running forwards as own "Port forwards" section (2026-11-11), "Open dashboard…", Quit. Dashboard = sandbox details (workspace, created, policy version, reason), policy proposals with approve/reject, other actions. Policy proposals never show in the menu.
 - **Notifications:** new policy proposals, and a sandbox entering phase Error or disappearing. Not for an unreachable gateway (red dot is enough), not for proposals already open at app start. Click opens the dashboard at the affected item.
 - **Distribution:** Homebrew cask in an own tap (`traveling-developer/homebrew-tap`), only from 0.1.0 (all actions done); until then local ad hoc builds.
 - **Frontend:** Svelte 5 + TS, pinned exactly, Svelte scoped CSS + CSS variables (native look, light/dark), no Tailwind.
+- **Design (adopted 2026-11-11):** "Native · Chartreuse" mockups in `docs/design/` are binding (values, not markup); their README lists the deviations. Menu, notifications and restart dialog stay native (NSMenu has no coloured/right-aligned text). Tray icon keeps its ">_" glyph, only colours change. Sidebar keeps the phase (the user rejected dropping it). Dashboard "Port forwards" section always shown, "none" when empty. Views the mockups lack are derived from their building blocks. Tickets 23 (look) and 24 (app icon) came out of this; each ticket has a "**Design:**" line.
 - **Policy proposals:** dashboard shows the proposed rule (host:port, binary); approve/reject one at a time, no reject reason; no approve-all, edit or undo.
 - **Confirmation:** only for gateway restart.
 - **Gateway restart:** item only shown if the active gateway runs as a `brew services` service on this Mac; not on Linux/Windows for now.

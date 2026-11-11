@@ -63,7 +63,7 @@ func main() {
 		menu.Update()
 
 		// The icon is not a template image (the dot keeps its colour). The
-		// glyph is always white; a setting to switch it is in docs/backlog.md.
+		// glyph is always white until a setting can switch it to black.
 		tray.SetIcon(trayicon.Badged(whiteGlyph, dotColour))
 	}
 	render(nil)

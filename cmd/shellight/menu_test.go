@@ -9,6 +9,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/traveling-developer/shellight/internal/gateway"
+	"github.com/traveling-developer/shellight/internal/trayicon"
 )
 
 func status(phases ...string) gateway.Status {
@@ -23,20 +24,19 @@ func TestDot(t *testing.T) {
 	tests := []struct {
 		name string
 		s    gateway.Status
-		want string
+		want trayicon.RGB
 	}{
-		{"unreachable", gateway.Status{Name: "gw", Err: errors.New("down")}, "red"},
-		{"no sandboxes", status(), "green"},
-		{"all settled", status("Ready", "Stopped", "Completed", "Suspended"), "green"},
-		{"one between phases", status("Ready", "Provisioning"), "yellow"},
-		{"unknown phase", status("Unknown"), "yellow"},
-		{"error wins", status("Provisioning", "Error"), "red"},
+		{"unreachable", gateway.Status{Name: "gw", Err: errors.New("down")}, errorDot},
+		{"no sandboxes", status(), okDot},
+		{"all settled", status("Ready", "Stopped", "Completed", "Suspended"), okDot},
+		{"one between phases", status("Ready", "Provisioning"), busyDot},
+		{"unknown phase", status("Unknown"), busyDot},
+		{"error wins", status("Provisioning", "Error"), errorDot},
 	}
-	names := map[any]string{okDot: "green", busyDot: "yellow", errorDot: "red"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := names[dot(tt.s)]; got != tt.want {
-				t.Errorf("dot = %s, want %s", got, tt.want)
+			if got := dot(tt.s); got != tt.want {
+				t.Errorf("dot = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

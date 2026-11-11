@@ -14,15 +14,15 @@ import (
 	"github.com/traveling-developer/shellight/internal/trayicon"
 )
 
-// Status dot colours, Apple system colours.
+// Status dot colours for the white glyph (docs/design/README.md).
 var (
-	unknownDot = trayicon.RGB{R: 0x8e, G: 0x8e, B: 0x93} // grey: no result yet
-	okDot      = trayicon.RGB{R: 0x34, G: 0xc7, B: 0x59} // green
-	busyDot    = trayicon.RGB{R: 0xff, G: 0xcc, B: 0x00} // yellow
-	errorDot   = trayicon.RGB{R: 0xff, G: 0x3b, B: 0x30} // red
+	unknownDot = trayicon.RGB{R: 0x9a, G: 0x9e, B: 0x95} // no result yet
+	okDot      = trayicon.RGB{R: 0xb8, G: 0xe6, B: 0x2a}
+	busyDot    = trayicon.RGB{R: 0xf2, G: 0xb8, B: 0x4b}
+	errorDot   = trayicon.RGB{R: 0xff, G: 0x7a, B: 0x66}
 )
 
-// Phase states, which pick the colour of a sandbox's dot.
+// Phase states, which pick the shape and colour of a sandbox's status.
 const (
 	phaseOK    = "ok"    // settled
 	phaseBusy  = "busy"  // between phases
@@ -41,8 +41,8 @@ func phaseState(phase string) string {
 	}
 }
 
-// dot picks the status dot: red if the gateway is unreachable or a sandbox
-// is in phase Error, yellow if a sandbox is between phases, else green.
+// dot picks the status dot: error if the gateway is unreachable or a
+// sandbox is in phase Error, busy if a sandbox is between phases, else ok.
 func dot(s gateway.Status) trayicon.RGB {
 	if s.Err != nil {
 		return errorDot
