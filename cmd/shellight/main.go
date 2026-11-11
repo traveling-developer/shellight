@@ -57,7 +57,7 @@ func main() {
 		if s == nil {
 			menu.Add(connecting).SetEnabled(false)
 		} else {
-			addStatus(menu, *s, app.Env.IsDarkMode(), dash.openAt)
+			addStatus(menu, *s, time.Now(), app.Env.IsDarkMode(), dash.openAt)
 			dotColour = dot(*s)
 		}
 		menu.AddSeparator()

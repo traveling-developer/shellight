@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -110,29 +111,40 @@ func versionLine(version, buildID string) string {
 	return "shellight " + version
 }
 
-// problem says what is wrong with the gateway if s.Err is set.
-func problem(s gateway.Status) string {
+// edgeLines are the two lines that say what is wrong with the gateway if
+// s.Err is set, and what the user can do, at now.
+func edgeLines(s gateway.Status, now time.Time) (head, hint string) {
 	var unsupported *gateway.UnsupportedAuthModeError
 	switch {
 	case s.Name == "":
-		return "Gateway: not configured"
+		return "Gateway: not configured", "Set one up with the openshell CLI"
 	case errors.As(s.Err, &unsupported):
-		return "Gateway: " + s.Name + " — auth mode " + unsupported.Mode + " not supported"
-	default:
-		return "Gateway: " + s.Name + " — unreachable"
+		return "Gateway: " + s.Name + " — auth mode " + unsupported.Mode + " not supported",
+			"Switch gateways with the openshell CLI"
 	}
+	head = "Gateway: " + s.Name + " unreachable"
+	retry := fmt.Sprintf("every %d s", int(s.Retry.Round(time.Second)/time.Second))
+	if s.LastSeen.IsZero() {
+		return head, "Retrying " + retry
+	}
+	return head, "Last seen " + seenLabel(s.LastSeen, now) + " · retrying " + retry
+}
+
+// seenLabel formats a last seen time like createdLabel, but without
+// "Today, ": "10:38", "Yesterday, 18:40", "3 Nov, 09:12".
+func seenLabel(t, now time.Time) string {
+	return strings.TrimPrefix(createdLabel(t, now), "Today, ")
 }
 
 // addStatus adds the gateway line, the sandboxes and the port forwards of s
-// to m, with status shapes for a dark menu if dark is set. A click on a
-// sandbox calls openSandbox with its workspace and name.
-func addStatus(m *application.Menu, s gateway.Status, dark bool, openSandbox func(workspace, name string)) {
+// to m, with status shapes for a dark menu if dark is set, or the edge
+// lines at now if the gateway has a problem. A click on a sandbox calls
+// openSandbox with its workspace and name.
+func addStatus(m *application.Menu, s gateway.Status, now time.Time, dark bool, openSandbox func(workspace, name string)) {
 	if s.Err != nil {
-		sub := m.AddSubmenu(problem(s))
-		if s.Endpoint != "" {
-			sub.Add(s.Endpoint).SetEnabled(false)
-		}
-		addLines(sub, s.Err.Error())
+		head, hint := edgeLines(s, now)
+		m.Add(head).SetEnabled(false)
+		m.Add(hint).SetEnabled(false)
 		return
 	}
 

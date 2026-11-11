@@ -94,6 +94,46 @@ func TestStatusEqual(t *testing.T) {
 	if base.equal(proposalErr) {
 		t.Error("proposal error not seen")
 	}
+	backoff := down
+	backoff.Retry = pollBackoff
+	if down.equal(backoff) {
+		t.Error("retry interval change not seen")
+	}
+	seen := down
+	seen.LastSeen = time.Date(2026, 11, 11, 10, 38, 0, 0, time.UTC)
+	if down.equal(seen) || !seen.equal(Status{Name: "gw", Err: errors.New("down"), LastSeen: seen.LastSeen.Local()}) {
+		t.Error("last seen compared wrongly")
+	}
+}
+
+func TestRetryAfter(t *testing.T) {
+	for failures, want := range map[int]time.Duration{
+		1: 5 * time.Second, 6: 5 * time.Second, 7: 30 * time.Second, 100: 30 * time.Second,
+	} {
+		if got := retryAfter(failures); got != want {
+			t.Errorf("retryAfter(%d) = %v, want %v", failures, got, want)
+		}
+	}
+}
+
+func TestHistory(t *testing.T) {
+	seen := time.Date(2026, 11, 11, 10, 38, 0, 0, time.UTC)
+	down := errors.New("connection refused")
+	var h history
+	h.note(&Status{Name: "local", Endpoint: "https://127.0.0.1:17690"}, seen)
+	for range quickRetries {
+		h.note(&Status{Name: "local", Endpoint: "https://127.0.0.1:17690", Err: down}, seen)
+	}
+	s := Status{Name: "local", Endpoint: "https://127.0.0.1:17690", Err: down}
+	if wait := h.note(&s, seen); wait != pollBackoff || s.Retry != pollBackoff || !s.LastSeen.Equal(seen) {
+		t.Errorf("same gateway: wait %v, status %v / %v; want %v, last seen %v", wait, s.Retry, s.LastSeen, pollBackoff, seen)
+	}
+
+	// After a switch, the old gateway's contact and failures do not count.
+	s = Status{Name: "corp", Endpoint: "https://corp.example:8080", Err: down}
+	if wait := h.note(&s, seen); wait != pollEvery || s.Retry != pollEvery || !s.LastSeen.IsZero() {
+		t.Errorf("switched gateway: wait %v, status %v / %v; want %v, no last seen", wait, s.Retry, s.LastSeen, pollEvery)
+	}
 }
 
 func TestReason(t *testing.T) {

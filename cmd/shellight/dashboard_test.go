@@ -33,8 +33,13 @@ func TestDashboardStatus(t *testing.T) {
 	}{
 		{"before the first poll", nil,
 			DashboardStatus{Problem: "Gateway: connecting…", Workspaces: []DashboardWorkspace{}}},
-		{"unreachable", &gateway.Status{Name: "gw", Err: errors.New("connection refused")},
-			DashboardStatus{Problem: "Gateway: gw — unreachable", Detail: "connection refused", Workspaces: []DashboardWorkspace{}}},
+		{"unreachable", &gateway.Status{Name: "gw", Endpoint: "https://127.0.0.1:17690", Err: errors.New("connection refused"),
+			LastSeen: time.Date(2026, 11, 11, 9, 58, 0, 0, time.Local), Retry: 30 * time.Second},
+			DashboardStatus{Problem: "Gateway: gw unreachable", Hint: "Last seen 09:58 · retrying every 30 s",
+				Endpoint: "https://127.0.0.1:17690", Detail: "connection refused", Workspaces: []DashboardWorkspace{}}},
+		{"not configured", &gateway.Status{Err: errors.New("gateway config: no active gateway")},
+			DashboardStatus{Problem: "Gateway: not configured", Hint: "Set one up with the openshell CLI",
+				Detail: "gateway config: no active gateway", Workspaces: []DashboardWorkspace{}}},
 		{"no sandboxes", &gateway.Status{Name: "gw", Info: gateway.Info{Version: "0.1.7", Drivers: []string{"podman"}}},
 			DashboardStatus{Gateway: "Gateway: gw · 0.1.7 · podman", Workspaces: []DashboardWorkspace{}}},
 		{"grouped by workspace", &reachable, DashboardStatus{

@@ -32,9 +32,11 @@ type SandboxKey struct {
 
 // DashboardStatus is what the dashboard shows of a poll round.
 type DashboardStatus struct {
-	Gateway    string               `json:"gateway"` // gateway line if the gateway is reachable
-	Problem    string               `json:"problem"` // what is wrong with the gateway, else empty
-	Detail     string               `json:"detail"`  // the error behind Problem
+	Gateway    string               `json:"gateway"`  // gateway line if the gateway is reachable
+	Problem    string               `json:"problem"`  // what is wrong with the gateway, else empty
+	Hint       string               `json:"hint"`     // what the user can do about Problem
+	Endpoint   string               `json:"endpoint"` // of the gateway with Problem, if known
+	Detail     string               `json:"detail"`   // the error behind Problem
 	Workspaces []DashboardWorkspace `json:"workspaces"`
 	// ForwardErr is set if listing the port forwards failed; then no
 	// sandbox has forwards.
@@ -76,7 +78,8 @@ func dashboardStatus(s *gateway.Status, now time.Time) DashboardStatus {
 		ds.Problem = connecting
 		return ds
 	case s.Err != nil:
-		ds.Problem, ds.Detail = problem(*s), s.Err.Error()
+		ds.Problem, ds.Hint = edgeLines(*s, now)
+		ds.Endpoint, ds.Detail = s.Endpoint, s.Err.Error()
 		return ds
 	}
 	ds.Gateway = gatewayLine(*s)

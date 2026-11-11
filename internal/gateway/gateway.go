@@ -17,7 +17,8 @@ import (
 
 const (
 	pollEvery    = 5 * time.Second
-	pollBackoff  = 30 * time.Second // after an error
+	pollBackoff  = 30 * time.Second // after quickRetries failed rounds
+	quickRetries = 6                // failed rounds retried at pollEvery
 	fetchTimeout = 5 * time.Second
 )
 
@@ -38,6 +39,11 @@ type Status struct {
 	// list, e.g. of another gateway: the CLI keeps the forwards of all
 	// gateways together. Sorted by workspace, sandbox, then port.
 	OtherForwards []Forward
+	// LastSeen is when the last round succeeded; set only if Err is set,
+	// zero if no round has succeeded since start.
+	LastSeen time.Time
+	// Retry is the wait until the next round; set only if Err is set.
+	Retry time.Duration
 }
 
 // Info is what shellight shows about the gateway.
@@ -59,20 +65,19 @@ type Sandbox struct {
 	Proposals     []PolicyProposal // pending ones, sorted by ID
 }
 
-// Poll fetches from the active gateway of the openshell CLI every 5 s, or
-// 30 s after an error, until ctx is done. It passes the first result and
-// every change to update, so an open menu is not rebuilt for nothing.
+// Poll fetches from the active gateway of the openshell CLI every 5 s
+// until ctx is done; after quickRetries failed rounds in a row it backs off
+// to 30 s. It passes the first result and every change to update, so an
+// open menu is not rebuilt for nothing.
 func Poll(ctx context.Context, update func(Status)) {
 	var last *Status
+	var h history
 	for {
 		s := poll(ctx)
+		wait := h.note(&s, time.Now())
 		if last == nil || !s.equal(*last) {
 			update(s)
 			last = &s
-		}
-		wait := pollEvery
-		if s.Err != nil {
-			wait = pollBackoff
 		}
 		select {
 		case <-ctx.Done():
@@ -82,12 +87,44 @@ func Poll(ctx context.Context, update func(Status)) {
 	}
 }
 
+// history is what Poll remembers of the rounds before, for the active
+// gateway only: a switch to another gateway starts it over.
+type history struct {
+	name, endpoint string    // of the active gateway
+	lastSeen       time.Time // last round that succeeded, zero if none
+	failures       int       // failed rounds in a row
+}
+
+// note records round s at now, sets s.LastSeen and s.Retry if s failed,
+// and returns the wait until the next round.
+func (h *history) note(s *Status, now time.Time) time.Duration {
+	if s.Name != h.name || s.Endpoint != h.endpoint {
+		*h = history{name: s.Name, endpoint: s.Endpoint}
+	}
+	if s.Err == nil {
+		h.failures, h.lastSeen = 0, now
+		return pollEvery
+	}
+	h.failures++
+	s.LastSeen, s.Retry = h.lastSeen, retryAfter(h.failures)
+	return s.Retry
+}
+
+// retryAfter is the wait after the given number of failed rounds in a row.
+func retryAfter(failures int) time.Duration {
+	if failures <= quickRetries {
+		return pollEvery
+	}
+	return pollBackoff
+}
+
 // equal reports whether s and o would show the same.
 func (s Status) equal(o Status) bool {
 	return s.Name == o.Name && s.Endpoint == o.Endpoint && s.AuthMode == o.AuthMode &&
 		errText(s.Err) == errText(o.Err) && errText(s.ForwardErr) == errText(o.ForwardErr) &&
 		errText(s.ProposalErr) == errText(o.ProposalErr) &&
-		reflect.DeepEqual(s.Info, o.Info) && reflect.DeepEqual(s.OtherForwards, o.OtherForwards)
+		reflect.DeepEqual(s.Info, o.Info) && reflect.DeepEqual(s.OtherForwards, o.OtherForwards) &&
+		s.LastSeen.Equal(o.LastSeen) && s.Retry == o.Retry
 }
 
 func errText(err error) string {

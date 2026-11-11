@@ -96,16 +96,29 @@
 
   <main class="content">
     {#if status?.problem}
-      <div>
+      <header>
         <h1>{status.problem}</h1>
-        {#if status.detail}
-          <p class="detail">{status.detail}</p>
+        {#if status.hint}
+          <p class="subtitle">{status.hint}</p>
         {/if}
-      </div>
+      </header>
+      {#if status.endpoint}
+        <dl class="tiles">
+          <div>
+            <dt>Endpoint</dt>
+            <dd>{status.endpoint}</dd>
+          </div>
+        </dl>
+      {/if}
+      {#if status.detail}
+        <p class="error-box">{status.detail}</p>
+      {/if}
     {:else if selectedSandbox}
       <SandboxDetails sandbox={selectedSandbox} forwardErr={status?.forwardErr ?? ""} />
-    {:else if sandboxes.length > 0}
-      <p class="hint">No sandbox selected</p>
+    {:else if status}
+      <!-- Like the empty detail pane of Mail or Notes, also when the
+           sidebar is empty. -->
+      <p class="placeholder">No sandbox selected</p>
     {/if}
   </main>
 </div>
@@ -187,8 +200,7 @@
   }
 
   .phase,
-  .empty,
-  .hint {
+  .empty {
     color: var(--text-secondary);
   }
 
@@ -210,20 +222,52 @@
     padding: 22px 28px 28px;
   }
 
-  .hint {
-    margin: 0;
+  .placeholder {
+    margin: auto;
+    font-size: 15px;
+    color: var(--text-secondary);
+  }
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   h1 {
-    margin: 0 0 8px;
-    font-size: 15px;
-    font-weight: 600;
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
   }
 
-  .detail {
+  .subtitle {
+    margin: 0;
+    color: var(--text-subtitle);
+  }
+
+  .tiles {
+    margin: 0;
+    border: 1px solid var(--separator);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .tiles div {
+    padding: 10px 14px;
+    background: var(--tile-bg);
+  }
+
+  dt {
+    font-size: 11px;
     color: var(--text-secondary);
+  }
+
+  dd {
+    margin: 0;
+    font: 500 13px "SF Mono", ui-monospace, monospace;
+    overflow-wrap: anywhere;
     user-select: text;
     -webkit-user-select: text;
-    overflow-wrap: anywhere;
   }
 </style>
