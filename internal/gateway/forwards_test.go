@@ -66,7 +66,8 @@ func TestAttachForwards(t *testing.T) {
 	a8080 := Forward{Workspace: "default", Sandbox: "a", Bind: "0.0.0.0", Port: 8080}
 	team := Forward{Workspace: "team", Sandbox: "a", Bind: "127.0.0.1", Port: 3000}
 	gone := Forward{Workspace: "default", Sandbox: "gone", Bind: "127.0.0.1", Port: 5000} // other gateway
-	attachForwards(sbs, []Forward{a9000, a8080, team, gone})
+	early := Forward{Workspace: "default", Sandbox: "early", Bind: "127.0.0.1", Port: 6000}
+	others := attachForwards(sbs, []Forward{a9000, gone, a8080, team, early})
 	want := []Sandbox{
 		{Name: "a", Workspace: "default", Forwards: []Forward{a8080, a9000}}, // sorted by port
 		{Name: "a", Workspace: "team", Forwards: []Forward{team}},
@@ -74,5 +75,8 @@ func TestAttachForwards(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sbs, want) {
 		t.Errorf("sandboxes =\n%+v\nwant\n%+v", sbs, want)
+	}
+	if want := []Forward{early, gone}; !reflect.DeepEqual(others, want) {
+		t.Errorf("others = %+v, want %+v", others, want)
 	}
 }

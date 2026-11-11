@@ -17,6 +17,10 @@ import (
 // buildID is set at link time (scripts/build-darwin.sh) to tell builds apart.
 var buildID = "dev"
 
+// version is the release version, set at link time for a release; "dev"
+// otherwise.
+var version = "dev"
+
 // whiteGlyph is the menu bar glyph colour.
 var whiteGlyph = trayicon.RGB{R: 0xff, G: 0xff, B: 0xff}
 
@@ -43,22 +47,25 @@ func main() {
 	tray.SetTooltip("shellight")
 
 	// render rebuilds the menu and the status dot; s is nil before the first
-	// poll result.
+	// poll result. last is what it rendered, to rebuild the menu when the
+	// system appearance changes.
+	var last *gateway.Status
 	render := func(s *gateway.Status) {
+		last = s
 		menu.Clear()
 		dotColour := unknownDot
 		if s == nil {
 			menu.Add(connecting).SetEnabled(false)
 		} else {
-			addStatus(menu, *s)
+			addStatus(menu, *s, app.Env.IsDarkMode(), dash.openAt)
 			dotColour = dot(*s)
 		}
 		menu.AddSeparator()
 		menu.Add("Open dashboard…").OnClick(func(*application.Context) {
 			dash.open()
 		})
-		menu.Add("Build " + buildID).SetEnabled(false)
-		menu.Add("Quit").OnClick(func(*application.Context) {
+		menu.Add(versionLine(version, buildID)).SetEnabled(false)
+		menu.Add("Quit shellight").SetAccelerator("CmdOrCtrl+Q").OnClick(func(*application.Context) {
 			app.Quit()
 		})
 		menu.Update()
@@ -83,6 +90,10 @@ func main() {
 			dash.update(dashboardStatus(&s, time.Now()))
 			application.InvokeSync(func() { render(&s) })
 		})
+	})
+
+	app.Event.OnApplicationEvent(events.Common.ThemeChanged, func(*application.ApplicationEvent) {
+		application.InvokeSync(func() { render(last) })
 	})
 
 	if err := app.Run(); err != nil {

@@ -14,7 +14,8 @@ import (
 	"github.com/traveling-developer/shellight/internal/trayicon"
 )
 
-// Status dot colours for the white glyph (docs/design/README.md).
+// Status dot colours for the white glyph (docs/design/README.md); also the
+// status shape colours of a dark menu.
 var (
 	unknownDot = trayicon.RGB{R: 0x9a, G: 0x9e, B: 0x95} // no result yet
 	okDot      = trayicon.RGB{R: 0xb8, G: 0xe6, B: 0x2a}
@@ -62,12 +63,51 @@ func dot(s gateway.Status) trayicon.RGB {
 	return okDot
 }
 
+// menuShapes are the status shapes of the menu's sandbox lines by phase
+// state, for a light (false) and a dark (true) menu, in the colours of the
+// design mockups. A menu item image does not follow the menu's appearance,
+// so the menu is rebuilt when the system appearance changes.
+var menuShapes = map[bool]map[string][]byte{
+	false: statusShapes(
+		trayicon.RGB{R: 0x3e, G: 0x6b, B: 0x00},
+		trayicon.RGB{R: 0xb4, G: 0x56, B: 0x0b},
+		trayicon.RGB{R: 0xc4, G: 0x32, B: 0x1f}),
+	true: statusShapes(okDot, busyDot, errorDot),
+}
+
+// statusShapes renders the status shape of each phase state.
+func statusShapes(ok, busy, bad trayicon.RGB) map[string][]byte {
+	return map[string][]byte{
+		phaseOK:    trayicon.StatusShape(trayicon.Circle, ok),
+		phaseBusy:  trayicon.StatusShape(trayicon.Ring, busy),
+		phaseError: trayicon.StatusShape(trayicon.Triangle, bad),
+	}
+}
+
 // connecting is the gateway line before the first poll result.
 const connecting = "Gateway: connecting…"
 
-// gatewayLine is the gateway line of a reachable gateway.
+// gatewayLine is the dashboard's gateway line of a reachable gateway.
 func gatewayLine(s gateway.Status) string {
 	return fmt.Sprintf("Gateway: %s · %s · %s", s.Name, s.Info.Version, strings.Join(s.Info.Drivers, ", "))
+}
+
+// menuGatewayLine is the menu's gateway line of a reachable gateway.
+func menuGatewayLine(s gateway.Status) string {
+	mode := s.AuthMode
+	if mode == "mtls" {
+		mode = "mTLS"
+	}
+	return "Gateway: " + s.Name + " · " + mode
+}
+
+// versionLine names the shellight build: its version, or the build ID of a
+// dev build.
+func versionLine(version, buildID string) string {
+	if version == "dev" {
+		return "shellight dev · " + buildID
+	}
+	return "shellight " + version
 }
 
 // problem says what is wrong with the gateway if s.Err is set.
@@ -83,8 +123,10 @@ func problem(s gateway.Status) string {
 	}
 }
 
-// addStatus adds the gateway line and the sandboxes of s to m.
-func addStatus(m *application.Menu, s gateway.Status) {
+// addStatus adds the gateway line, the sandboxes and the port forwards of s
+// to m, with status shapes for a dark menu if dark is set. A click on a
+// sandbox calls openSandbox with its workspace and name.
+func addStatus(m *application.Menu, s gateway.Status, dark bool, openSandbox func(workspace, name string)) {
 	if s.Err != nil {
 		sub := m.AddSubmenu(problem(s))
 		if s.Endpoint != "" {
@@ -94,41 +136,40 @@ func addStatus(m *application.Menu, s gateway.Status) {
 		return
 	}
 
-	m.Add(gatewayLine(s)).SetEnabled(false)
+	m.Add(menuGatewayLine(s)).SetEnabled(false)
 	m.AddSeparator()
 	if len(s.Info.Sandboxes) == 0 {
 		m.Add("No sandboxes").SetEnabled(false)
-		return
+	} else {
+		m.Add("Sandboxes").SetEnabled(false)
 	}
-	m.Add("Sandboxes").SetEnabled(false)
+	var fwds []gateway.Forward
 	for _, sb := range s.Info.Sandboxes {
-		sub := m.AddSubmenu(sb.Name + " — " + sb.Phase)
-		sub.Add("Workspace: " + sb.Workspace).SetEnabled(false)
-		sub.Add("Created: " + sb.Created.Local().Format("2006-01-02 15:04")).SetEnabled(false)
-		sub.Add(fmt.Sprintf("Policy: v%d", sb.PolicyVersion)).SetEnabled(false)
-		if sb.Reason != "" {
-			addLines(sub, sb.Reason)
-		}
-		if len(sb.Forwards) > 0 {
-			sub.AddSeparator()
-			sub.Add("Port forwards").SetEnabled(false)
-			for _, f := range sb.Forwards {
-				addForward(sub, f)
-			}
-		}
+		m.Add(sb.Name + " — " + sb.Phase).
+			SetBitmap(menuShapes[dark][phaseState(sb.Phase)]).
+			OnClick(func(*application.Context) { openSandbox(sb.Workspace, sb.Name) })
+		fwds = append(fwds, sb.Forwards...)
 	}
-	// Forwards only show under their sandbox, so this matters only with
-	// sandboxes.
-	if s.ForwardErr != nil {
+	fwds = append(fwds, s.OtherForwards...)
+
+	switch {
+	case s.ForwardErr != nil:
+		m.AddSeparator()
 		addLines(m.AddSubmenu("Port forwards: unavailable"), s.ForwardErr.Error())
+	case len(fwds) > 0:
+		m.AddSeparator()
+		m.Add("Port forwards").SetEnabled(false)
+		for _, f := range fwds {
+			addForward(m, f)
+		}
 	}
 }
 
-// addForward adds a port forward as "bind:port", which opens it in the
-// browser.
+// addForward adds a port forward as "host:port — sandbox", which opens it
+// in the browser.
 func addForward(m *application.Menu, f gateway.Forward) {
-	_, url := forwardTarget(f)
-	m.Add(net.JoinHostPort(f.Bind, strconv.Itoa(f.Port))).OnClick(func(*application.Context) {
+	hostPort, url := forwardTarget(f)
+	m.Add(hostPort + " — " + f.Sandbox).OnClick(func(*application.Context) {
 		if err := application.Get().Browser.OpenURL(url); err != nil {
 			log.Printf("open %s: %v", url, err)
 		}

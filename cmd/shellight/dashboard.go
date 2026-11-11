@@ -15,8 +15,19 @@ import (
 // round that changed something.
 const statusEvent = "dashboard:status"
 
+// selectEvent carries a SandboxKey to an open dashboard to select that
+// sandbox.
+const selectEvent = "dashboard:select"
+
 func init() {
 	application.RegisterEvent[DashboardStatus](statusEvent)
+	application.RegisterEvent[SandboxKey](selectEvent)
+}
+
+// SandboxKey identifies a sandbox.
+type SandboxKey struct {
+	Workspace string `json:"workspace"`
+	Name      string `json:"name"`
 }
 
 // DashboardStatus is what the dashboard shows of a poll round.
@@ -128,6 +139,9 @@ type Dashboard struct {
 	mu     sync.Mutex
 	status DashboardStatus
 	window *application.WebviewWindow // nil while closed
+	// selection is the sandbox to select once a new dashboard has loaded;
+	// nil to select the first sandbox.
+	selection *SandboxKey
 }
 
 // newDashboard returns a dashboard showing "connecting"; set its app before
@@ -152,10 +166,38 @@ func (d *Dashboard) update(s DashboardStatus) {
 	d.app.Event.Emit(statusEvent, s)
 }
 
-// open opens the dashboard, or brings it to front if it is open. The Dock
+// Selection returns the sandbox to select when the dashboard loads, or nil
+// for the first sandbox; the frontend calls it once it follows selectEvent.
+func (d *Dashboard) Selection() *SandboxKey {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.selection
+}
+
+// openAt opens the dashboard with the sandbox workspace/name selected.
+func (d *Dashboard) openAt(workspace, name string) {
+	key := SandboxKey{Workspace: workspace, Name: name}
+	d.mu.Lock()
+	d.selection = &key
+	d.mu.Unlock()
+	// An open dashboard follows the event; a new one asks for Selection.
+	d.app.Event.Emit(selectEvent, key)
+	d.show()
+}
+
+// open opens the dashboard with its selection as it was, or with the first
+// sandbox selected if it is new.
+func (d *Dashboard) open() {
+	d.mu.Lock()
+	d.selection = nil
+	d.mu.Unlock()
+	d.show()
+}
+
+// show opens the dashboard, or brings it to front if it is open. The Dock
 // icon shows while the dashboard is open. Closing the window destroys it,
 // so a closed dashboard holds no web view.
-func (d *Dashboard) open() {
+func (d *Dashboard) show() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.window == nil {

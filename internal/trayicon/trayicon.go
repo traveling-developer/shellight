@@ -1,5 +1,6 @@
 // Package trayicon renders the shellight menu bar icon as PNG: a black or
-// white glyph with a coloured status dot.
+// white glyph with a coloured status dot. It also renders the status shapes
+// of the menu's sandbox lines.
 //
 // The glyph is a terminal frame with a ">_" prompt. Wails scales the image to
 // the menu bar thickness (about 24 pt), so the canvas is 48x48 px (@2x).

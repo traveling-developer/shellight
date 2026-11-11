@@ -25,6 +25,7 @@ const (
 type Status struct {
 	Name     string // active gateway; empty if the CLI config cannot be read
 	Endpoint string // as in the CLI config, e.g. https://127.0.0.1:17690
+	AuthMode string // as in the CLI config: mtls, plaintext, none, ...
 	Info     Info
 	Err      error // reading the config, connecting or fetching failed
 	// ForwardErr is set if listing the port forwards failed; the gateway
@@ -33,6 +34,10 @@ type Status struct {
 	// ProposalErr is set if reading the policy proposals failed; the gateway
 	// status is still valid then, but no sandbox has proposals.
 	ProposalErr error
+	// OtherForwards are running forwards to sandboxes the gateway does not
+	// list, e.g. of another gateway: the CLI keeps the forwards of all
+	// gateways together. Sorted by workspace, sandbox, then port.
+	OtherForwards []Forward
 }
 
 // Info is what shellight shows about the gateway.
@@ -79,10 +84,10 @@ func Poll(ctx context.Context, update func(Status)) {
 
 // equal reports whether s and o would show the same.
 func (s Status) equal(o Status) bool {
-	return s.Name == o.Name && s.Endpoint == o.Endpoint &&
+	return s.Name == o.Name && s.Endpoint == o.Endpoint && s.AuthMode == o.AuthMode &&
 		errText(s.Err) == errText(o.Err) && errText(s.ForwardErr) == errText(o.ForwardErr) &&
 		errText(s.ProposalErr) == errText(o.ProposalErr) &&
-		reflect.DeepEqual(s.Info, o.Info)
+		reflect.DeepEqual(s.Info, o.Info) && reflect.DeepEqual(s.OtherForwards, o.OtherForwards)
 }
 
 func errText(err error) string {
@@ -99,7 +104,7 @@ func poll(ctx context.Context) Status {
 	if err != nil {
 		return Status{Err: err}
 	}
-	s := Status{Name: cfg.Name, Endpoint: cfg.Endpoint}
+	s := Status{Name: cfg.Name, Endpoint: cfg.Endpoint, AuthMode: string(cfg.AuthMode)}
 	conf, err := clientConfig(cfg)
 	if err != nil {
 		s.Err = err
@@ -133,7 +138,7 @@ func poll(ctx context.Context) Status {
 		s.ForwardErr = err
 		return s
 	}
-	attachForwards(s.Info.Sandboxes, fwds)
+	s.OtherForwards = attachForwards(s.Info.Sandboxes, fwds)
 	return s
 }
 

@@ -204,7 +204,7 @@ func TestPollErrors(t *testing.T) {
 //
 //	SHELLIGHT_LIVE=1 go test ./internal/gateway -run Live -v
 func TestLive(t *testing.T) {
-	s := livePoll(t, "test-gateway", "shellight-test")
+	s := livePoll(t, "test-gateway", "shellight-test", "mtls")
 	if !hasProposal(s.Info.Sandboxes, "fwtest", "ports.ubuntu.com:80") {
 		t.Error("sandbox fwtest has no pending policy proposal for ports.ubuntu.com:80")
 	}
@@ -213,12 +213,13 @@ func TestLive(t *testing.T) {
 // TestLivePlaintext polls the test gateway without TLS (auth mode
 // plaintext), which scripts/test-gateway.sh up starts next to the mTLS one.
 func TestLivePlaintext(t *testing.T) {
-	livePoll(t, "test-gateway-plaintext", "shellight-test-plaintext")
+	livePoll(t, "test-gateway-plaintext", "shellight-test-plaintext", "plaintext")
 }
 
 // livePoll runs one poll round with the CLI config of the test gateway in
-// .dev/<dir> and checks that it reached the gateway named name.
-func livePoll(t *testing.T, dir, name string) Status {
+// .dev/<dir> and checks that it reached the gateway named name with auth
+// mode authMode.
+func livePoll(t *testing.T, dir, name, authMode string) Status {
 	t.Helper()
 	if os.Getenv("SHELLIGHT_LIVE") == "" {
 		t.Skip("set SHELLIGHT_LIVE=1 to run against the test gateway")
@@ -233,7 +234,7 @@ func livePoll(t *testing.T, dir, name string) Status {
 	if s.Err != nil {
 		t.Fatal(s.Err)
 	}
-	if s.Name != name || s.Info.Version == "" || len(s.Info.Drivers) == 0 {
+	if s.Name != name || s.AuthMode != authMode || s.Info.Version == "" || len(s.Info.Drivers) == 0 {
 		t.Errorf("status = %+v", s)
 	}
 	if s.ForwardErr != nil {

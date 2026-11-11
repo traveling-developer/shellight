@@ -1,21 +1,23 @@
 <script lang="ts">
   import { Events } from "@wailsio/runtime";
-  import { DashboardStatus as statusEvent } from "../bindings/events/index.js";
+  import {
+    DashboardSelect as selectEvent,
+    DashboardStatus as statusEvent,
+  } from "../bindings/events/index.js";
   import {
     Dashboard,
     type DashboardSandbox,
     type DashboardStatus,
+    type SandboxKey,
   } from "../bindings/github.com/traveling-developer/shellight/cmd/shellight/index.js";
   import SandboxDetails from "./SandboxDetails.svelte";
   import StatusShape from "./StatusShape.svelte";
 
-  // A sandbox is identified by its workspace and name.
-  type SandboxKey = { workspace: string; name: string };
-
   // null until the first answer from Go.
   let status = $state<DashboardStatus | null>(null);
   let selected = $state<SandboxKey | null>(null);
-  // The first sandbox is selected once, when the first sandboxes arrive.
+  // The first sandbox is selected once, when the first sandboxes arrive,
+  // unless the menu asked for a sandbox.
   let autoSelected = false;
 
   const sandboxes = $derived((status?.workspaces ?? []).flatMap((ws) => ws.sandboxes ?? []));
@@ -49,6 +51,20 @@
   });
   Dashboard.Status().then((s) => {
     if (!pushed) apply(s);
+  });
+
+  // A sandbox clicked in the menu: the same order as for the status.
+  function selectKey(key: SandboxKey) {
+    autoSelected = true;
+    selected = { workspace: key.workspace, name: key.name };
+  }
+  let selectPushed = false;
+  Events.On(selectEvent, (ev) => {
+    selectPushed = true;
+    selectKey(ev.data);
+  });
+  Dashboard.Selection().then((key) => {
+    if (key && !selectPushed) selectKey(key);
   });
 </script>
 

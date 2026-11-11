@@ -69,19 +69,24 @@ func listForwards(ctx context.Context) ([]Forward, error) {
 	return fwds, nil
 }
 
-// attachForwards adds each forward to its sandbox, sorted by port. Forwards
-// to sandboxes the gateway does not list are dropped: the CLI keeps forwards
-// of all gateways together.
-func attachForwards(sbs []Sandbox, fwds []Forward) {
+// attachForwards adds each forward to its sandbox, sorted by port, and
+// returns the forwards to sandboxes the gateway does not list, sorted by
+// workspace, sandbox, then port: the CLI keeps the forwards of all gateways
+// together.
+func attachForwards(sbs []Sandbox, fwds []Forward) (others []Forward) {
 	slices.SortFunc(fwds, func(a, b Forward) int {
-		return cmp.Or(cmp.Compare(a.Port, b.Port), cmp.Compare(a.Bind, b.Bind))
+		return cmp.Or(cmp.Compare(a.Workspace, b.Workspace), cmp.Compare(a.Sandbox, b.Sandbox),
+			cmp.Compare(a.Port, b.Port), cmp.Compare(a.Bind, b.Bind))
 	})
-	for i := range sbs {
-		sb := &sbs[i]
-		for _, f := range fwds {
-			if f.Workspace == sb.Workspace && f.Sandbox == sb.Name {
-				sb.Forwards = append(sb.Forwards, f)
-			}
+	for _, f := range fwds {
+		i := slices.IndexFunc(sbs, func(sb Sandbox) bool {
+			return f.Workspace == sb.Workspace && f.Sandbox == sb.Name
+		})
+		if i < 0 {
+			others = append(others, f)
+			continue
 		}
+		sbs[i].Forwards = append(sbs[i].Forwards, f)
 	}
+	return others
 }
